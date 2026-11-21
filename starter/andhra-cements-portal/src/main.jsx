@@ -30,6 +30,17 @@ function App() {
   const [headers, setHeaders] = useState([]);
   const [mapping, setMapping] = useState({bagType:"",receiptDate:"",quantity:"",sourceRef:"",remarks:""});
   const [notice, setNotice] = useState("");
+  const [dispatchReportKey, setDispatchReportKey] = useState("state_district");
+  const [dispatchData, setDispatchData] = useState(null);
+  const [dispatchBusy, setDispatchBusy] = useState(false);
+  const [dispatchError, setDispatchError] = useState("");
+  const dispatchReports = [
+    {key:"state_district",label:"State / District",rpc:"get_state_district_report"},
+    {key:"transporter",label:"Transporter-wise",rpc:"get_transporter_dispatch_report"},
+    {key:"under_loading",label:"Under Loading",rpc:"get_under_loading_report"},
+    {key:"clinker_customer",label:"Clinker Sales – Customer-wise",rpc:"get_clinker_customer_report"}
+  ];
+
 
   useEffect(() => {
     if (!supabase) return;
@@ -39,9 +50,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (session?.user) loadData();
-    else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); }
-  }, [session, reportDate]);
+    if (session?.user) {
+      if (reportType === "Packing Plant Reports") loadData();
+      else if (reportType === "Dispatch Reports") loadDispatch();
+    } else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); setDispatchData(null); }
+  }, [session, reportDate, reportType, dispatchReportKey]);
 
   async function loadData() {
     setBusy(true); setError("");
@@ -61,6 +74,22 @@ function App() {
       setBagTypes(b.data||[]); setStockStatement(statement||null); setReceipts(r.data||[]);
     } catch(e) { setError(e.message || "Unable to load portal data."); }
     finally { setBusy(false); }
+  }
+
+
+  async function loadDispatch() {
+    if (!supabase || !session?.user) return;
+    const selected = dispatchReports.find(x => x.key === dispatchReportKey);
+    if (!selected) return;
+    setDispatchBusy(true); setDispatchError("");
+    try {
+      const {data,error:rpcError} = await supabase.rpc(selected.rpc,{p_date:reportDate});
+      if (rpcError) throw rpcError;
+      setDispatchData(data ?? null);
+    } catch(e) {
+      setDispatchData(null);
+      setDispatchError(e.message || "Unable to load this Dispatch report.");
+    } finally { setDispatchBusy(false); }
   }
 
   async function signIn(e) {
@@ -139,7 +168,18 @@ function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
-      {reportType !== "Packing Plant Reports" ? <section className="panel"><h3>{reportType}</h3><p>This independent replacement portal is rebuilding the {reportType} module from the established report requirements and verified Supabase backend. It is not connected to live Dispatch or Weighbridge workflows yet. Continue using the existing live portal for these reports until the rebuilt module passes report-total, upload, filter, export, and role-permission checks.</p></section> :
+      {reportType === "Dispatch Reports" ? <section>
+        <div className="section-head"><div><span className="eyebrow">DISPATCH REPORTS · READ-ONLY PREVIEW</span><h1>{dispatchReports.find(x=>x.key===dispatchReportKey)?.label}</h1><p className="muted">Connected to the existing authenticated Supabase report function. Existing production data is read only.</p></div>
+          <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadDispatch}><RefreshCw size={16}/>Refresh</button></div></div>
+        <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{reportDate}</span></div>
+          <div className="mapping-grid"><label>Report<select value={dispatchReportKey} onChange={e=>setDispatchReportKey(e.target.value)}>{dispatchReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div>
+        </div>
+        {dispatchError && <div className="alert error">{dispatchError}</div>}
+        {dispatchBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
+        {!dispatchBusy && dispatchData && <ReportDataView data={dispatchData}/>}
+        {!dispatchBusy && !dispatchError && dispatchData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
+        <div className="alert warning">This is the first read-only report integration. Upload workflows, additional layouts, filters and export controls will be added after verifying the returned data against the existing portal.</div>
+      </section> : reportType === "Weighbridge Reports" ? <section className="panel"><h3>Weighbridge Reports</h3><p>The verified backend inventory is complete. Datewise, Pending and Card Issue report screens are next in the implementation sequence. The existing live portal remains the operational source until the replacement is tested.</p></section> :
       <>
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
@@ -173,6 +213,31 @@ function App() {
     </main>
   </div>;
 }
+
+function ReportDataView({data}) {
+  const scalarEntries = data && typeof data==="object" && !Array.isArray(data)
+    ? Object.entries(data).filter(([,v])=>v===null || ["string","number","boolean"].includes(typeof v))
+    : [];
+  const arrays = [];
+  function walk(value,path="Report") {
+    if (Array.isArray(value)) {
+      if (value.length && value.every(x=>x && typeof x==="object" && !Array.isArray(x))) arrays.push({name:path,rows:value});
+      return;
+    }
+    if (value && typeof value==="object") for (const [k,v] of Object.entries(value)) walk(v,path+" / "+k.replace(/_/g," "));
+  }
+  walk(data);
+  const primary = arrays.sort((a,b)=>b.rows.length-a.rows.length)[0];
+  const columns = primary ? [...new Set(primary.rows.flatMap(r=>Object.keys(r)))]:[];
+  const fmtValue = v => v===null || v===undefined ? "—" : typeof v==="object" ? JSON.stringify(v) : String(v);
+  return <section>
+    {scalarEntries.length>0 && <div className="stats">{scalarEntries.map(([k,v])=><div className="stat" key={k}><span>{k.replace(/_/g," ")}</span><b>{fmtValue(v)}</b></div>)}</div>}
+    {primary ? <div className="panel"><div className="panel-title"><h3>{primary.name}</h3><span className="pill">{primary.rows.length} rows</span></div><div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c}>{c.replace(/_/g," ")}</th>)}</tr></thead><tbody>{primary.rows.map((r,i)=><tr key={i}>{columns.map(c=><td key={c}>{fmtValue(r[c])}</td>)}</tr>)}</tbody></table></div></div>
+    : <div className="panel"><h3>Report response</h3><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(data,null,2)}</pre></div>}
+    {arrays.length>1 && <p className="footnote">The current preview displays the largest returned detail list. Additional report sections will be mapped into their final layouts after data-shape verification.</p>}
+  </section>;
+}
+
 function SetupScreen(){return <div className="login-wrap"><div className="login-card"><div className="brand-mark">AC</div><h1>Portal setup required</h1><p>Add the Supabase project URL and public anon/publishable key to a local <code>.env</code> file using <code>.env.example</code>. Never use a service-role key in this browser application.</p></div></div>}
 function toISODate(value){
   if(value instanceof Date && !Number.isNaN(value.getTime())) return value.getFullYear()+"-"+String(value.getMonth()+1).padStart(2,"0")+"-"+String(value.getDate()).padStart(2,"0");
