@@ -89,7 +89,7 @@ export default function PackingPlantPrototype() {
     <div className="panel">
       <div className="mapping-grid pp-shift-controls">
         <label>Shift business date<input type="date" value={businessDate} onChange={e=>setBusinessDate(e.target.value)}/></label>
-        <label>Shift<select value={shiftCode} onChange={e=>setShiftCode(e.target.value)}>{Object.entries(SHIFTS).map(([key,value])=><option key={key} value={key}>{value.label}</option>)}</select></label>
+        <label>Shift<select value={shiftCode} onChange={e=>{setShiftCode(e.target.value);setIntervals([]);setGapClassifications({});}}>{Object.entries(SHIFTS).map(([key,value])=><option key={key} value={key}>{value.label}</option>)}</select></label>
         <div className="pp-shift-window"><span>Shift window</span><b>{shift.start} – {shiftCode === "C" ? "06:00 next day" : shift.end}</b><small>8 hours · 24-hour clock</small></div>
       </div>
       {shiftCode === "C" && <div className="alert">C Shift business date {businessDate}: Part 1 is {businessDate} 22:00–24:00; Part 2 is the following calendar date 00:00–06:00. Both parts remain one shift.</div>}
