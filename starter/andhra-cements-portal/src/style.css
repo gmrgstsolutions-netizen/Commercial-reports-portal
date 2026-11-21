@@ -25,3 +25,17 @@
 .pp-prototype .pp-gap-row span{font-variant-numeric:tabular-nums}
 @media(max-width:760px){.pp-prototype .pp-production-grid{grid-template-columns:repeat(2,minmax(130px,1fr))}.pp-prototype .pp-gap-row{grid-template-columns:1fr 1fr}.pp-prototype .pp-gap-row select,.pp-prototype .pp-gap-row input{grid-column:span 2}}
 @media(max-width:560px){.pp-prototype .pp-production-grid,.pp-prototype .pp-summary-grid{grid-template-columns:1fr}}
+
+
+/* Packing Plant shift registers and master prototypes */
+.pp-registers .pp-register-tabs{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 16px}
+.pp-registers .pp-register-grid{grid-template-columns:repeat(3,minmax(150px,1fr));align-items:end;margin-bottom:14px}
+.pp-registers .pp-register-grid label{display:flex;flex-direction:column;gap:7px;color:#5f7085;font-size:12px;font-weight:600}
+.pp-registers input,.pp-registers select{min-width:0;border:1px solid #d7e0e9;border-radius:8px;background:#fff;padding:9px 10px;color:#27394d;font:inherit}
+.pp-registers .pp-register-actions{display:flex;gap:9px;flex-wrap:wrap}
+.pp-registers .pp-reason-group{margin-top:16px}
+.pp-registers .pp-reason-group h4{font:700 13px Manrope;color:#40536a;margin:0 0 8px}
+.pp-registers .pp-reason-group .text-btn{margin-right:9px}
+.pp-registers input[type=checkbox]{width:18px;height:18px;accent-color:#1d6eb5}
+@media(max-width:760px){.pp-registers .pp-register-grid{grid-template-columns:repeat(2,minmax(130px,1fr))}}
+@media(max-width:560px){.pp-registers .pp-register-grid{grid-template-columns:1fr}}
