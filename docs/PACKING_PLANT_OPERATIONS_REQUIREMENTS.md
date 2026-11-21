@@ -16,10 +16,10 @@ The portal must continue to preserve the Dispatch Reports and Weighbridge Report
 - Machine capacities supplied:
   - Packer 1: 120 TPH
   - Packer 2: 120 TPH
-  - Third packer: 240 TPH
+  - Packer 3: 240 TPH
 - The same capacity applies to PPC and OPC on each machine.
 
-**Machine-label note:** The user first identified the three machines as Packer 1, Packer 2 and Packer 4, then supplied capacities for Packer 1, Packer 2 and Packer 3. They confirmed there are only three machines. Treat the third machine's final display label as pending confirmation; do not silently create a fourth machine.
+The final machine names are confirmed as Packer 1, Packer 2 and Packer 3. There are exactly three machines.
 
 ## 3. Shift and operating-day convention
 
@@ -85,7 +85,7 @@ A shift cannot be marked complete while any derived stoppage interval lacks a ca
 Rated capacity is the same for PPC and OPC on each machine:
 - Packer 1: 120 MT/hour
 - Packer 2: 120 MT/hour
-- Third packer: 240 MT/hour (final machine label pending confirmation)
+- Packer 3: 240 MT/hour
 
 User requested one combined utilisation percentage for PPC and OPC together, not separate product utilisation percentages.
 
@@ -199,7 +199,6 @@ Do not add further reports unless requested by the user.
 
 ## 15. Open confirmations before final implementation
 
-1. Final display label for the third packer: Packer 3 or Packer 4.
-2. Whether C Shift is attributed to its 22:00 start date or split across the two calendar dates in daily reports.
-3. Actual shift schedule and manpower master, to be supplied by the user.
-4. Whether a shift can be finalized only after all production intervals, derived stoppage reasons, shift staff and truck records are entered.
+1. Whether C Shift is attributed to its 22:00 start date or split across the two calendar dates in daily reports.
+2. Actual shift schedule and manpower master, to be supplied by the user.
+3. Whether a shift can be finalized only after all production intervals, derived stoppage reasons, shift staff and truck records are entered.
