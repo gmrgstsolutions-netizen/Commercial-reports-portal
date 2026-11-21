@@ -75,7 +75,7 @@ begin
   from public.profiles p
   where p.id = v_user_id and p.is_active;
 
-  if v_user_id is null or v_role not in ('admin','uploader') then
+  if v_user_id is null or v_role is null or v_role not in ('admin','uploader') then
     raise exception 'Active Admin or Uploader access is required to import packing bag receipts';
   end if;
 
