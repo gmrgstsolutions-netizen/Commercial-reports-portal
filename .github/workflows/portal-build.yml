@@ -1,0 +1,26 @@
+name: Portal build check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: starter/andhra-cements-portal
+        run: npm install --no-audit --no-fund
+      - name: Build portal
+        working-directory: starter/andhra-cements-portal
+        run: npm run build
