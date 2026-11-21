@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow } from "lucide-react";
 import "./style.css";
 import PackingPlantPrototype from "./PackingPlantPrototype.jsx";
+import PackingPlantRegisters from "./PackingPlantRegisters.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -229,6 +230,7 @@ function App() {
       </select>
       <div className="nav-label">PACKING PLANT</div>
       <button className={tab==="Packing Plant Operations"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Operations")}><LayoutDashboard size={17}/>Production &amp; Running Hours</button>
+      <button className={tab==="Packing Plant Registers"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Registers")}><LayoutDashboard size={17}/>Shift Registers &amp; Masters</button>
       <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
       {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
       <button className={tab==="Packing Bags Receipts"?"nav active":"nav"} onClick={()=>setTab("Packing Bags Receipts")}><History size={17}/>Packing Bags Receipts</button>
@@ -268,6 +270,7 @@ function App() {
       </section> :
       <>
         {tab==="Packing Plant Operations" && <PackingPlantPrototype/>}
+        {tab==="Packing Plant Registers" && <PackingPlantRegisters/>}
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
           <div className="section-head"><div><span className="eyebrow">PACKING PLANT · FINANCIAL YEAR REPORT</span><h1>Packing Bags Stock Statement</h1><p className="muted">Opening balance, receipts, consumption, damages and closing balance calculated by the existing Supabase report function.</p></div><div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div></div>
