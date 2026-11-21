@@ -140,3 +140,15 @@ The five fixed category labels are Mechanical, Electrical, Instrumentation, Oper
 - Effective-dated A/B/C employee shift schedule.
 - Reason names under the five stoppage categories (Admin can add these later).
 - Confirmed role membership and record-level permissions.
+
+
+## Existing Supabase project inspection (read-only)
+
+The connected Supabase project currently used for Sales Dispatch Reports is active and already contains authentication/profile, dispatch report, and packing-bag inventory tables. This is a shared live backend, not a blank database.
+
+Consequences:
+- Do not create, rename, drop, truncate or alter existing Dispatch, Weighbridge, profile, authentication, or packing-bag tables as part of this new module without a separately reviewed migration and explicit approval.
+- Before physical schema work, inspect all existing tables, policies, functions, triggers and grants, then agree which existing packing-bag tables the Packing Plant screens will reuse.
+- New operational tables should use a consistent, clearly namespaced prefix (for example `pp_`) to avoid collisions with existing objects.
+- Preserve the existing user/profile and role model; extend it only after reviewing its current policies and authorization functions.
+- This inspection was read-only. No database objects or data were changed.
