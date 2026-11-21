@@ -45,7 +45,7 @@ function App() {
   const [weighToDate, setWeighToDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [rawFromDate, setRawFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
   const [rawToDate, setRawToDate] = useState(new Date().toLocaleDateString("en-CA"));
-  const weighReports = [{key:"datewise",label:"Datewise Report",rpc:"get_weighbridge_report"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
+  const weighReports = [{key:"datewise",label:"Datewise Report",rpc:"get_weighbridge_report"},{key:"product_summary",label:"Consolidated Product Summary",rpc:"get_weighbridge_product_summary"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
   const dispatchReports = [
     {key:"state_district",label:"State / District",rpc:"get_state_district_report"},
     {key:"transporter",label:"Transporter-wise",rpc:"get_transporter_dispatch_report"},
