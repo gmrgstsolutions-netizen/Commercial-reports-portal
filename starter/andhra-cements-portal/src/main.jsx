@@ -296,26 +296,32 @@ function App() {
 }
 
 function ReportDataView({data}) {
-  const scalarEntries = data && typeof data==="object" && !Array.isArray(data)
-    ? Object.entries(data).filter(([,v])=>v===null || ["string","number","boolean"].includes(typeof v))
-    : [];
   const arrays = [];
+  const summaries = [];
   function walk(value,path="Report") {
     if (Array.isArray(value)) {
-      if (value.length && value.every(x=>x && typeof x==="object" && !Array.isArray(x))) arrays.push({name:path,rows:value});
+      if (!value.length || value.every(x=>x && typeof x==="object" && !Array.isArray(x))) {
+        arrays.push({name:path,rows:value});
+      }
       return;
     }
-    if (value && typeof value==="object") for (const [k,v] of Object.entries(value)) walk(v,path+" / "+k.replace(/_/g," "));
+    if (value && typeof value==="object") {
+      for (const [k,v] of Object.entries(value)) walk(v,path+" / "+k.replace(/_/g," "));
+      return;
+    }
+    if (path!=="Report") summaries.push({name:path,value});
   }
   walk(data);
-  const primary = arrays.sort((a,b)=>b.rows.length-a.rows.length)[0];
-  const columns = primary ? [...new Set(primary.rows.flatMap(r=>Object.keys(r)))]:[];
   const fmtValue = v => v===null || v===undefined ? "—" : typeof v==="object" ? JSON.stringify(v) : String(v);
   return <section>
-    {scalarEntries.length>0 && <div className="stats">{scalarEntries.map(([k,v])=><div className="stat" key={k}><span>{k.replace(/_/g," ")}</span><b>{fmtValue(v)}</b></div>)}</div>}
-    {primary ? <div className="panel"><div className="panel-title"><h3>{primary.name}</h3><span className="pill">{primary.rows.length} rows</span></div><div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c}>{c.replace(/_/g," ")}</th>)}</tr></thead><tbody>{primary.rows.map((r,i)=><tr key={i}>{columns.map(c=><td key={c}>{fmtValue(r[c])}</td>)}</tr>)}</tbody></table></div></div>
-    : <div className="panel"><h3>Report response</h3><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(data,null,2)}</pre></div>}
-    {arrays.length>1 && <p className="footnote">The current preview displays the largest returned detail list. Additional report sections will be mapped into their final layouts after data-shape verification.</p>}
+    {summaries.length>0 && <div className="stats">{summaries.map(({name,value})=><div className="stat" key={name}><span>{name}</span><b>{fmtValue(value)}</b></div>)}</div>}
+    {arrays.length>0 ? arrays.map((section,index)=>{
+      const columns=[...new Set(section.rows.flatMap(r=>Object.keys(r)))];
+      return <div className="panel" key={section.name+"-"+index}>
+        <div className="panel-title"><h3>{section.name}</h3><span className="pill">{section.rows.length} rows</span></div>
+        {section.rows.length ? <div className="table-scroll"><table><thead><tr>{columns.map(col=><th key={col}>{col.replace(/_/g," ")}</th>)}</tr></thead><tbody>{section.rows.map((row,rowIndex)=><tr key={rowIndex}>{columns.map(col=><td key={col}>{fmtValue(row[col])}</td>)}</tr>)}</tbody></table></div> : <p className="muted">No rows returned for this section.</p>}
+      </div>;
+    }) : <div className="panel"><h3>Report response</h3><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(data,null,2)}</pre></div>}
   </section>;
 }
 
