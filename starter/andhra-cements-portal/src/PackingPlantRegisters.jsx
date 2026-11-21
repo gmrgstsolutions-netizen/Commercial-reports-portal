@@ -91,7 +91,6 @@ export default function PackingPlantRegisters() {
     setNotice("Reason master changed in local demonstration state only.");
   };
   const startEditReason = r => { setEditingReason(r.id); setReasonCategory(r.category); setReasonText(r.reason); };
-  const loadTotal = loads.reduce((sum, row) => sum + row.quantity, 0);
   const selectedShiftLoads = loads.filter(x => x.date === loadDate && x.shift === loadShift);
   const shiftTotal = selectedShiftLoads.reduce((sum, row) => sum + row.quantity, 0);
   const shiftCount = selectedShiftLoads.length;
@@ -119,7 +118,7 @@ export default function PackingPlantRegisters() {
         </div>
         <button className="primary" type="button" onClick={addLoad}>Add truck entry</button>
       </div>
-      <div className="stats">
+      <div className="stats pp-truck-stats">
         <div className="stat"><span>Trucks · selected shift</span><b>{shiftCount}</b></div>
         <div className="stat"><span>Quantity · selected shift (MT)</span><b>{shiftTotal.toFixed(2)}</b></div>
         <div className="stat"><span>PPC quantity · selected shift (MT)</span><b>{ppcTotal.toFixed(2)}</b></div>\n        <div className="stat"><span>OPC quantity · selected shift (MT)</span><b>{opcTotal.toFixed(2)}</b></div>\n        <div className="stat"><span>Average quantity per truck (MT)</span><b>{averagePerTruck.toFixed(2)}</b></div>
