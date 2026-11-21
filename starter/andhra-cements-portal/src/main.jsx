@@ -34,6 +34,8 @@ function App() {
   const [dispatchData, setDispatchData] = useState(null);
   const [dispatchBusy, setDispatchBusy] = useState(false);
   const [dispatchError, setDispatchError] = useState("");
+  const [dispatchFromDate, setDispatchFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
+  const [dispatchToDate, setDispatchToDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [weighReportKey, setWeighReportKey] = useState("datewise");
   const [weighData, setWeighData] = useState(null);
   const [weighBusy, setWeighBusy] = useState(false);
@@ -45,7 +47,10 @@ function App() {
     {key:"state_district",label:"State / District",rpc:"get_state_district_report"},
     {key:"transporter",label:"Transporter-wise",rpc:"get_transporter_dispatch_report"},
     {key:"under_loading",label:"Under Loading",rpc:"get_under_loading_report"},
-    {key:"clinker_customer",label:"Clinker Sales – Customer-wise",rpc:"get_clinker_customer_report"}
+    {key:"clinker_customer",label:"Clinker Sales – Customer-wise",rpc:"get_clinker_customer_report"},
+    {key:"invoice_wise",label:"Invoice-wise",rpc:"get_invoice_wise_report_v2"},
+    {key:"trade_non_trade",label:"Trade / Non-Trade Summary",rpc:"get_trade_non_dispatches"},
+    {key:"monthly_yearly",label:"Month-wise Financial Year Summary",rpc:"get_month_wise_yearly_report"}
   ];
 
 
@@ -62,7 +67,7 @@ function App() {
       else if (reportType === "Dispatch Reports") loadDispatch();
       else if (reportType === "Weighbridge Reports") loadWeighbridge();
     } else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); setDispatchData(null); }
-  }, [session, reportDate, reportType, dispatchReportKey]);
+  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate]);
 
   async function loadData() {
     setBusy(true); setError("");
@@ -91,7 +96,19 @@ function App() {
     if (!selected) return;
     setDispatchBusy(true); setDispatchError("");
     try {
-      const {data,error:rpcError} = await supabase.rpc(selected.rpc,{p_date:reportDate});
+      let args={p_date:reportDate};
+      if (dispatchReportKey==="invoice_wise") args={
+        p_months:[],p_date_from:dispatchFromDate || null,p_date_to:dispatchToDate || null,
+        p_invno:"",p_dispatchdate:"",p_customer:"",p_warehouse:"",p_itemcode:"",
+        p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",
+        p_shippingstate:"",p_district:"",p_transporter:"",p_limit:1000
+      };
+      else if (dispatchReportKey==="trade_non_trade") args={p_month:reportDate};
+      else if (dispatchReportKey==="monthly_yearly") {
+        const d=new Date(reportDate+"T00:00:00");
+        args={p_fy_start:d.getMonth()>=3?d.getFullYear():d.getFullYear()-1};
+      }
+      const {data,error:rpcError} = await supabase.rpc(selected.rpc,args);
       if (rpcError) throw rpcError;
       setDispatchData(data ?? null);
     } catch(e) {
@@ -194,15 +211,15 @@ function App() {
       <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
       {reportType === "Dispatch Reports" ? <section>
         <div className="section-head"><div><span className="eyebrow">DISPATCH REPORTS · READ-ONLY PREVIEW</span><h1>{dispatchReports.find(x=>x.key===dispatchReportKey)?.label}</h1><p className="muted">Connected to the existing authenticated Supabase report function. Existing production data is read only.</p></div>
-          <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadDispatch}><RefreshCw size={16}/>Refresh</button></div></div>
-        <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{reportDate}</span></div>
+          <div className="date-tools">{dispatchReportKey==="invoice_wise" ? <><label>From date<input type="date" value={dispatchFromDate} onChange={e=>setDispatchFromDate(e.target.value)}/></label><label>To date<input type="date" value={dispatchToDate} onChange={e=>setDispatchToDate(e.target.value)}/></label></> : <label>{dispatchReportKey==="monthly_yearly"?"Financial year reference date":"Report date"}<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label>}<button className="secondary" onClick={loadDispatch}><RefreshCw size={16}/>Refresh</button></div></div>
+        <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{dispatchReportKey==="invoice_wise"?dispatchFromDate+" to "+dispatchToDate:dispatchReportKey==="monthly_yearly"?"FY "+(new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear():new Date(reportDate+"T00:00:00").getFullYear()-1)+"-"+String((new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear()+1:new Date(reportDate+"T00:00:00").getFullYear()) ).slice(-2):reportDate}</span></div>
           <div className="mapping-grid"><label>Report<select value={dispatchReportKey} onChange={e=>setDispatchReportKey(e.target.value)}>{dispatchReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div>
         </div>
         {dispatchError && <div className="alert error">{dispatchError}</div>}
         {dispatchBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
         {!dispatchBusy && dispatchData && <ReportDataView data={dispatchData}/>}
         {!dispatchBusy && !dispatchError && dispatchData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
-        <div className="alert warning">This is the first read-only report integration. Upload workflows, additional layouts, filters and export controls will be added after verifying the returned data against the existing portal.</div>
+        <div className="alert warning">These connected reports are read-only. Invoice-wise results are limited to 1,000 rows; use the date range to narrow the result. Trade / Non-Trade is month-scoped. Financial-year summary requires the account to have All dates permission. Product-wise and other final report layouts will be mapped after their exact data sources are verified.</div>
       </section> : reportType === "Weighbridge Reports" ? <section>
         <div className="section-head"><div><span className="eyebrow">WEIGHBRIDGE REPORTS · READ-ONLY PREVIEW</span><h1>{weighReports.find(x=>x.key===weighReportKey)?.label}</h1><p className="muted">Connected to existing authenticated Supabase report functions. Production data is read only.</p></div>
           {weighReportKey==="raw_materials" ? <div className="date-tools"><label>From date<input type="date" value={rawFromDate} onChange={e=>setRawFromDate(e.target.value)}/></label><label>To date<input type="date" value={rawToDate} onChange={e=>setRawToDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div> : <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div>}</div>
