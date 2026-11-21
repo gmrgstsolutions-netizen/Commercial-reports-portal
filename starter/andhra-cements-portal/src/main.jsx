@@ -133,7 +133,7 @@ function App() {
         <div className="nav-label">ADMIN MAINTENANCE</div>
         <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/tree/source-import/starter-portal-2026-11-21/starter/andhra-cements-portal" target="_blank" rel="noreferrer"><Code2 size={17}/>Edit Portal Source</a>
         <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/pull/2" target="_blank" rel="noreferrer"><GitPullRequest size={17}/>Review Changes</a>
-        <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/actions/runs/44893556313" target="_blank" rel="noreferrer"><Workflow size={17}/>Build Status</a>
+        <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/actions" target="_blank" rel="noreferrer"><Workflow size={17}/>Build Status</a>
       </>}
       <div className="sidebar-bottom"><ShieldCheck size={16}/><span>{profile?.role || "user"} access</span></div>
     </aside>
