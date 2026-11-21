@@ -139,7 +139,7 @@ function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
-      {reportType !== "Packing Plant Reports" ? <section className="panel"><h3>{reportType}</h3><p>This replacement portal package is currently setting up the Packing Plant module. The existing live Dispatch and Weighbridge portal remains unchanged and should continue to be used for those reports until their original source is recovered and separately migrated.</p></section> :
+      {reportType !== "Packing Plant Reports" ? <section className="panel"><h3>{reportType}</h3><p>This independent replacement portal is rebuilding the {reportType} module from the established report requirements and verified Supabase backend. It is not connected to live Dispatch or Weighbridge workflows yet. Continue using the existing live portal for these reports until the rebuilt module passes report-total, upload, filter, export, and role-permission checks.</p></section> :
       <>
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
