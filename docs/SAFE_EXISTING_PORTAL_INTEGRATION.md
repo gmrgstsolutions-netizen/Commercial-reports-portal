@@ -45,6 +45,13 @@ The existing Dispatch Reports and Weighbridge Reports remain authoritative and m
 - [ ] Rollback source and release procedure documented.
 - [ ] User approves production deployment.
 
+## Latest staging validation
+
+- Source commit: `21c4b6ada46b310cb64ab169310b5f61a881b077`
+- GitHub Actions run: [Portal build check #22](https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/actions/runs/44895479705)
+- Result: **success** — dependency installation and Vite production build completed.
+- Scope: build validation only. It does not deploy the site, apply the draft database migration, or prove the placeholder Dispatch/Weighbridge views are production-ready.
+
 ## Current status
 
 **Staging only.** The live portal and production Supabase database have not been modified by this integration branch. The next blocking dependency is the original editable web-portal source; the supplied starter ZIP and rendered Library snapshot are not sufficient to safely migrate the two existing modules.
