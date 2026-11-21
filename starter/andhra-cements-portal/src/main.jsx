@@ -18,8 +18,8 @@ function App() {
   const [reportType, setReportType] = useState("Packing Plant Reports");
   const [tab, setTab] = useState("Reports");
   const [bagTypes, setBagTypes] = useState([]);
-  const [opening, setOpening] = useState([]);
-  const [receipts, setReceipts] = useState([]);
+  const [stockStatement, setStockStatement] = useState(null);
+  const [reportDate, setReportDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState([]);
@@ -34,23 +34,23 @@ function App() {
 
   useEffect(() => {
     if (session?.user) loadData();
-    else { setProfile(null); setBagTypes([]); setOpening([]); setReceipts([]); }
-  }, [session]);
+    else { setProfile(null); setBagTypes([]); setStockStatement(null); }
+  }, [session, reportDate]);
 
   async function loadData() {
     setBusy(true); setError("");
     try {
-      const [p,b,o,r] = await Promise.all([
+      const [p,b] = await Promise.all([
         supabase.from("profiles").select("id,email,full_name,role,is_active,must_change_password").eq("id",session.user.id).single(),
-        supabase.from("packing_bag_types").select("*").eq("is_active",true).order("sort_order"),
-        supabase.from("packing_bag_opening_balances").select("*").eq("financial_year_start","2026-04-01"),
-        supabase.from("packing_bag_receipts").select("*").order("receipt_date",{ascending:false}).limit(1000)
+        supabase.from("packing_bag_types").select("*").eq("is_active",true).order("sort_order")
       ]);
       if (p.error) throw p.error;
       if (!p.data.is_active) { await supabase.auth.signOut(); throw new Error("This account is inactive. Contact the administrator."); }
       setProfile(p.data);
-      if (b.error) throw b.error; if (o.error) throw o.error; if (r.error) throw r.error;
-      setBagTypes(b.data||[]); setOpening(o.data||[]); setReceipts(r.data||[]);
+      if (b.error) throw b.error;
+      const {data: statement, error: statementError} = await supabase.rpc("get_packing_bag_stock_statement", {p_date: reportDate});
+      if (statementError) throw statementError;
+      setBagTypes(b.data||[]); setStockStatement(statement||null);
     } catch(e) { setError(e.message || "Unable to load portal data."); }
     finally { setBusy(false); }
   }
@@ -65,11 +65,8 @@ function App() {
 
   const isAdmin = profile?.role === "admin";
   const canUpload = isAdmin || ["uploader"].includes(profile?.role);
-  const stockRows = useMemo(() => bagTypes.map(b => {
-    const ob = opening.find(x => x.bag_type_id === b.id)?.quantity ?? 0;
-    const rec = receipts.filter(x => x.bag_type_id === b.id).reduce((s,x)=>s+Number(x.quantity||0),0);
-    return {name:b.name,uom:b.uom,opening:Number(ob),receipts:rec,closing:Number(ob)+rec};
-  }), [bagTypes,opening,receipts]);
+  const stockRows = stockStatement?.rows ?? [];
+  const totals = stockStatement?.totals ?? {};
 
   async function parseFile(f) {
     setFile(f); setNotice(""); setPreview([]);
@@ -111,12 +108,12 @@ function App() {
       <>
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
-          <div className="section-head"><div><span className="eyebrow">FY 2026–27 · 01 APR 2026 – 31 MAR 2027</span><h1>Packing Bags Stock Statement</h1><p className="muted">Calculated from recorded opening balances and receipts. Consumption and damages are not included until their transaction tables are implemented.</p></div><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div>
-          <div className="stats"><div className="stat"><span>Bag categories</span><b>{bagTypes.length}</b></div><div className="stat"><span>Opening stock</span><b>{fmt(stockRows.reduce((s,x)=>s+x.opening,0))} NOS</b></div><div className="stat"><span>Recorded receipts</span><b>{fmt(stockRows.reduce((s,x)=>s+x.receipts,0))} NOS</b></div></div>
-          <div className="panel"><div className="panel-title"><h3>Bag-wise position</h3><span className="pill">NOS</span></div><div className="table-scroll"><table><thead><tr><th>Sl. No.</th><th>Particulars</th><th>UOM</th><th className="num">O.B.</th><th className="num">Receipts</th><th className="num">Calculated balance*</th></tr></thead><tbody>
-            {stockRows.map((r,i)=><tr key={r.name}><td>{i+1}</td><td><b>{r.name}</b></td><td>{r.uom}</td><td className="num">{fmt(r.opening)}</td><td className="num">{fmt(r.receipts)}</td><td className="num"><b>{fmt(r.closing)}</b></td></tr>)}
-            <tr className="total"><td colSpan="3">Grand Total</td><td className="num">{fmt(stockRows.reduce((s,x)=>s+x.opening,0))}</td><td className="num">{fmt(stockRows.reduce((s,x)=>s+x.receipts,0))}</td><td className="num">{fmt(stockRows.reduce((s,x)=>s+x.closing,0))}</td></tr>
-          </tbody></table></div><p className="footnote">*Calculated balance = FY opening stock + all recorded receipts. It is not the final physical closing stock because consumption and damages are not yet stored in the current database schema.</p></div>
+          <div className="section-head"><div><span className="eyebrow">PACKING PLANT · FINANCIAL YEAR REPORT</span><h1>Packing Bags Stock Statement</h1><p className="muted">Opening balance, receipts, consumption, damages and closing balance calculated by the existing Supabase report function.</p></div><div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div></div>
+          <div className="stats"><div className="stat"><span>Bag categories</span><b>{stockRows.length}</b></div><div className="stat"><span>Consumption YTD</span><b>{fmt(totals.consumption_ytd)} NOS</b></div><div className="stat"><span>Closing balance</span><b>{fmt(totals.closing_balance)} NOS</b></div></div>
+          <div className="panel"><div className="panel-title"><h3>Bag-wise stock position</h3><span className="pill">{reportDate}</span></div><div className="table-scroll"><table><thead><tr><th>Sl. No.</th><th>Particulars</th><th className="num">Opening</th><th className="num">Receipts OD</th><th className="num">Receipts MTD</th><th className="num">Receipts YTD</th><th className="num">Consumption OD</th><th className="num">Consumption MTD</th><th className="num">Consumption YTD</th><th className="num">Damages OD</th><th className="num">Damages MTD</th><th className="num">Damages YTD</th><th className="num">Closing</th></tr></thead><tbody>
+            {stockRows.map((r,i)=><tr key={r.code}><td>{i+1}</td><td><b>{r.name}</b></td><td className="num">{fmt(r.opening_balance)}</td><td className="num">{fmt(r.receipts_od)}</td><td className="num">{fmt(r.receipts_mtd)}</td><td className="num">{fmt(r.receipts_ytd)}</td><td className="num">{fmt(r.consumption_od)}</td><td className="num">{fmt(r.consumption_mtd)}</td><td className="num">{fmt(r.consumption_ytd)}</td><td className="num">{fmt(r.damages_od)}</td><td className="num">{fmt(r.damages_mtd)}</td><td className="num">{fmt(r.damages_ytd)}</td><td className="num"><b>{fmt(r.closing_balance)}</b></td></tr>)}
+            <tr className="total"><td colSpan="2">Grand Total</td><td className="num">{fmt(totals.opening_balance)}</td><td className="num">{fmt(totals.receipts_od)}</td><td className="num">{fmt(totals.receipts_mtd)}</td><td className="num">{fmt(totals.receipts_ytd)}</td><td className="num">{fmt(totals.consumption_od)}</td><td className="num">{fmt(totals.consumption_mtd)}</td><td className="num">{fmt(totals.consumption_ytd)}</td><td className="num">{fmt(totals.damages_od)}</td><td className="num">{fmt(totals.damages_mtd)}</td><td className="num">{fmt(totals.damages_ytd)}</td><td className="num">{fmt(totals.closing_balance)}</td></tr>
+          </tbody></table></div><p className="footnote">Values are returned by the existing database calculation, including the configured product/channel mappings and damage rates. A missing opening baseline is not presented as a verified stock balance.</p></div>
         </section>}
         {tab==="Upload Data" && <section><div className="section-head"><div><span className="eyebrow">DATA IMPORT</span><h1>Upload Packing Plant Data</h1><p className="muted">Select a workbook to inspect its contents before any import is enabled.</p></div></div>
           <div className="panel"><div className="dropzone"><FileSpreadsheet size={34}/><h3>Select Excel or CSV workbook</h3><p>Supported: .xlsx, .xls, .csv</p><input type="file" accept=".xlsx,.xls,.csv" onChange={e=>e.target.files?.[0]&&parseFile(e.target.files[0])}/></div>
