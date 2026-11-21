@@ -39,3 +39,8 @@
 .pp-registers input[type=checkbox]{width:18px;height:18px;accent-color:#1d6eb5}
 @media(max-width:760px){.pp-registers .pp-register-grid{grid-template-columns:repeat(2,minmax(130px,1fr))}}
 @media(max-width:560px){.pp-registers .pp-register-grid{grid-template-columns:1fr}}
+
+
+.pp-registers .pp-truck-stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:900px){.pp-registers .pp-truck-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.pp-registers .pp-truck-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
