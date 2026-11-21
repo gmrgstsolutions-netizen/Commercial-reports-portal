@@ -64,12 +64,33 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (session?.user) {
-      if (reportType === "Packing Plant Reports") loadData();
-      else if (reportType === "Dispatch Reports") loadDispatch();
-      else if (reportType === "Weighbridge Reports") loadWeighbridge();
-    } else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); setDispatchData(null); }
-  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate]);
+    let cancelled=false;
+    async function loadProfile() {
+      if (!session?.user) { setProfile(null); return; }
+      const {data,error:profileError}=await supabase.from("profiles")
+        .select("id,email,full_name,role,is_active,must_change_password")
+        .eq("id",session.user.id).single();
+      if (cancelled) return;
+      if (profileError) { setError(profileError.message); return; }
+      if (!data.is_active) { await supabase.auth.signOut(); setError("This account is inactive. Contact the administrator."); return; }
+      setProfile(data);
+    }
+    loadProfile();
+    return () => { cancelled=true; };
+  }, [session]);
+
+  useEffect(() => {
+    if (session?.user && reportType==="Packing Plant Reports") loadData();
+    if (!session?.user) { setBagTypes([]); setStockStatement(null); setReceipts([]); }
+  }, [session, reportDate, reportType]);
+
+  useEffect(() => {
+    if (session?.user && reportType==="Dispatch Reports") loadDispatch();
+  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate]);
+
+  useEffect(() => {
+    if (session?.user && reportType==="Weighbridge Reports") loadWeighbridge();
+  }, [session, reportDate, reportType, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate]);
 
   async function loadData() {
     setBusy(true); setError("");
