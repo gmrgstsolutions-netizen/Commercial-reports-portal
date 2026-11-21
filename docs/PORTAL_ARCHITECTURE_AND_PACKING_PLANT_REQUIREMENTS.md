@@ -15,6 +15,14 @@ Rebuilt Dispatch and Weighbridge flows must be compared against the current live
 
 ## Packing Plant screens
 
+Packing Plant is a complete operational module, not limited to packing-bag inventory. Its initial scope includes:
+
+- Packer-wise PPC/OPC production in MT by shift
+- Multiple product-specific running intervals per packer, with automatic running-hour calculation
+- Automatically derived stoppage intervals, category/reason capture, and stoppage analysis
+- Combined PPC + OPC capacity utilisation against each packer's rated TPH
+- Shift-level staff details and individual truck loading register
+- Manpower master, shift-wise attendance, and public-holiday/festival Extra Duty eligibility
 - Packing Bags Stock Statement
 - Packing Bags Receipts
 - Packing Plant Consumption
@@ -24,6 +32,8 @@ Rebuilt Dispatch and Weighbridge flows must be compared against the current live
 - Bag-wise Financial Year Summary
 - Upload Data
 - Upload History
+
+See [PACKING_PLANT_OPERATIONS_REQUIREMENTS.md](PACKING_PLANT_OPERATIONS_REQUIREMENTS.md) for the detailed user-confirmed operating rules, calculations, attendance conditions, and open confirmations.
 
 ## Access model
 
