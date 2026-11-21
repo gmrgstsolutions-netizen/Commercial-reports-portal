@@ -23,15 +23,16 @@ The final machine names are confirmed as Packer 1, Packer 2 and Packer 3. There 
 
 ## 3. Shift and operating-day convention
 
-The operating day is 00:00 through 24:00, using 24-hour time.
+The operating day is 00:00 through 24:00, using 24-hour time. All time entry controls use the 24-hour clock (00:00–24:00), with no AM/PM.
 
-| Shift | Start | End | Duration |
-|---|---:|---:|---:|
-| A | 06:00 | 14:00 | 8 hours |
-| B | 14:00 | 22:00 | 8 hours |
-| C | 22:00 | 06:00 next day | 8 hours |
+| Shift | Segment | Calendar date | Time | Duration |
+|---|---|---|---|---:|
+| A | Full shift | Shift start date | 06:00–14:00 | 8 hours |
+| B | Full shift | Shift start date | 14:00–22:00 | 8 hours |
+| C | Part 1 | Shift start date | 22:00–24:00 | 2 hours |
+| C | Part 2 | Following calendar date | 00:00–06:00 | 6 hours |
 
-All time entry controls use the 24-hour clock (00:00–24:00), with no AM/PM. The C-shift date attribution across midnight should be confirmed before final database/report implementation.
+C Shift remains one operational shift of 8 hours, but its time-based entries must be split at midnight into the two calendar-date segments above. Every C Shift record also carries a single `shift_business_date` equal to the date on which the shift started. For example, C Shift starting 21-Nov-2026 is recorded as 21-Nov-2026 22:00–24:00 plus 22-Nov-2026 00:00–06:00, and both segments belong to C Shift business date 21-Nov-2026. Store actual calendar date/time on each interval for accurate chronological records; group the complete shift under its starting date in shift-wise, daily operational, monthly and financial-year summaries. Stoppage calculations must cross midnight correctly and must not create a false gap at 24:00/00:00.
 
 ## 4. Shift production entry
 
@@ -199,6 +200,5 @@ Do not add further reports unless requested by the user.
 
 ## 15. Open confirmations before final implementation
 
-1. Whether C Shift is attributed to its 22:00 start date or split across the two calendar dates in daily reports.
-2. Actual shift schedule and manpower master, to be supplied by the user.
-3. Whether a shift can be finalized only after all production intervals, derived stoppage reasons, shift staff and truck records are entered.
+1. Actual shift schedule and manpower master, to be supplied by the user.
+2. Whether a shift can be finalized only after all production intervals, derived stoppage reasons, shift staff and truck records are entered.
