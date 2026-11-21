@@ -36,6 +36,7 @@ function App() {
   const [dispatchError, setDispatchError] = useState("");
   const [dispatchFromDate, setDispatchFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
   const [dispatchToDate, setDispatchToDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [invoiceFilters, setInvoiceFilters] = useState({p_invno:"",p_customer:"",p_warehouse:"",p_itemcode:"",p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",p_shippingstate:"",p_district:"",p_transporter:""});
   const [weighReportKey, setWeighReportKey] = useState("datewise");
   const [weighData, setWeighData] = useState(null);
   const [weighBusy, setWeighBusy] = useState(false);
@@ -122,9 +123,7 @@ function App() {
       let args={p_date:reportDate};
       if (dispatchReportKey==="invoice_wise") args={
         p_months:[],p_date_from:dispatchFromDate || null,p_date_to:dispatchToDate || null,
-        p_invno:"",p_dispatchdate:"",p_customer:"",p_warehouse:"",p_itemcode:"",
-        p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",
-        p_shippingstate:"",p_district:"",p_transporter:"",p_limit:1000
+        ...invoiceFilters,p_dispatchdate:"",p_limit:1000
       };
       else if (dispatchReportKey==="trade_non_trade") args={p_month:reportDate};
       else if (dispatchReportKey==="monthly_yearly") {
@@ -246,6 +245,7 @@ function App() {
         <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{dispatchReportKey==="invoice_wise"?dispatchFromDate+" to "+dispatchToDate:dispatchReportKey==="monthly_yearly"?"FY "+(new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear():new Date(reportDate+"T00:00:00").getFullYear()-1)+"-"+String((new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear()+1:new Date(reportDate+"T00:00:00").getFullYear()) ).slice(-2):reportDate}</span></div>
           <div className="mapping-grid"><label>Report<select value={dispatchReportKey} onChange={e=>setDispatchReportKey(e.target.value)}>{dispatchReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div>
         </div>
+        {dispatchReportKey==="invoice_wise" && <div className="panel"><div className="panel-title"><h3>Invoice-wise filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_invno","Invoice number"],["p_customer","Customer"],["p_warehouse","Warehouse"],["p_itemcode","Product code"],["p_saleschannel","Sales channel"],["p_oano","OA number"],["p_packslipno","Packslip number"],["p_vehicleno","Vehicle number"],["p_shippingstate","Shipping state"],["p_district","District"],["p_transporter","Transporter"]].map(([key,label])=><label key={key}>{label}<input value={invoiceFilters[key]} onChange={e=>setInvoiceFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label.toLowerCase()}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadDispatch}>Search invoices</button><button className="text-btn" onClick={()=>{setInvoiceFilters({p_invno:"",p_customer:"",p_warehouse:"",p_itemcode:"",p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",p_shippingstate:"",p_district:"",p_transporter:""});setTimeout(loadDispatch,0);}}>Clear filters</button></div></div>}
         {dispatchError && <div className="alert error">{dispatchError}</div>}
         {dispatchBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
         {!dispatchBusy && dispatchData && <ReportDataView data={dispatchData}/>}
