@@ -133,7 +133,7 @@ function App() {
         <div className="nav-label">ADMIN MAINTENANCE</div>
         <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/tree/source-import/starter-portal-2026-11-21/starter/andhra-cements-portal" target="_blank" rel="noreferrer"><Code2 size={17}/>Edit Portal Source</a>
         <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/pull/2" target="_blank" rel="noreferrer"><GitPullRequest size={17}/>Review Changes</a>
-        <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/actions/runs/44893191015" target="_blank" rel="noreferrer"><Workflow size={17}/>Build Status</a>
+        <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/actions/runs/44893556313" target="_blank" rel="noreferrer"><Workflow size={17}/>Build Status</a>
       </>}
       <div className="sidebar-bottom"><ShieldCheck size={16}/><span>{profile?.role || "user"} access</span></div>
     </aside>
@@ -175,7 +175,7 @@ function App() {
 }
 function SetupScreen(){return <div className="login-wrap"><div className="login-card"><div className="brand-mark">AC</div><h1>Portal setup required</h1><p>Add the Supabase project URL and public anon/publishable key to a local <code>.env</code> file using <code>.env.example</code>. Never use a service-role key in this browser application.</p></div></div>}
 function toISODate(value){
-  if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+  if(value instanceof Date && !Number.isNaN(value.getTime())) return value.getFullYear()+"-"+String(value.getMonth()+1).padStart(2,"0")+"-"+String(value.getDate()).padStart(2,"0");
   if(typeof value==="number" && value>0){const d=XLSX.SSF.parse_date_code(value);if(d)return d.y+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0");}
   const s=String(value??"").trim();if(!s)return "";
   let m=s.match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})$/);if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
