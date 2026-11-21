@@ -69,7 +69,7 @@ function App() {
       else if (reportType === "Dispatch Reports") loadDispatch();
       else if (reportType === "Weighbridge Reports") loadWeighbridge();
     } else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); setDispatchData(null); }
-  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate, weighFromDate, weighToDate]);
+  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate]);
 
   async function loadData() {
     setBusy(true); setError("");
@@ -125,6 +125,12 @@ function App() {
     if (!selected) return;
     setWeighBusy(true); setWeighError("");
     try {
+      if (weighReportKey==="transaction_wise") {
+        if (!weighFromDate || !weighToDate) throw new Error("Select both From date and To date.");
+        const span=(new Date(weighToDate+"T00:00:00")-new Date(weighFromDate+"T00:00:00"))/86400000;
+        if (span<0) throw new Error("From date must be before To date.");
+        if (span>92) throw new Error("Transaction-wise report supports a maximum 93-day date range.");
+      }
       const args = weighReportKey === "raw_materials"
         ? {p_date_from:rawFromDate || null,p_date_to:rawToDate || null,p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:"",p_limit:2000}
         : weighReportKey === "transaction_wise"
