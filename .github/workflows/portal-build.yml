@@ -1,6 +1,8 @@
 name: Portal build check
 
 on:
+  push:
+    branches: [source-import/starter-portal-2026-11-21]
   pull_request:
     branches: [main]
   workflow_dispatch:
