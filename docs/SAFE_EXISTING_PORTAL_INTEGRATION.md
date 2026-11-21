@@ -16,14 +16,14 @@ The existing Dispatch Reports and Weighbridge Reports remain authoritative and m
 
 ## Integration shape
 
-1. Keep the current live portal as the production entry point until a complete source-level migration is possible.
-2. Keep Packing Plant changes isolated in this repository and on the feature branch `source-import/starter-portal-2026-11-21`.
-3. Recover the actual editable source for the live portal, including its upload pages, Dispatch and Weighbridge screens, role checks, and any route-specific assets.
-4. Create a separate integration branch based on that recovered source. Add Packing Plant as a third report type/module without rewriting the existing Dispatch or Weighbridge modules.
-5. Keep existing routes, report calculations, upload mappings, access rules, and Supabase objects unchanged unless a reviewed migration explicitly requires an additive change.
-6. Test the three report types side-by-side in staging using Admin, Uploader, and Viewer accounts.
-7. Verify Dispatch and Weighbridge regression tests before any production release.
-8. Deploy only after staging sign-off and an explicit production release decision. Keep a rollback copy of the current production source and deployment.
+1. Keep the current live portal as the production entry point; do not change or redirect it during development.
+2. Build a separate, independently editable replacement portal in this repository and feature branch `source-import/starter-portal-2026-11-21`. The original live portal source is not a prerequisite.
+3. Rebuild Dispatch Reports and Weighbridge Reports as new modules from the established business rules, report layouts, upload workflows, and existing Supabase schema/RPCs. Treat the Android repository, prior project specifications, and verified database definitions as references—not as a drop-in web source.
+4. Keep Packing Plant as the third report type/module. Keep all three modules isolated by route/component and preserve existing database objects; use additive, namespaced changes only where necessary.
+5. Document any unknown mapping or behavior and leave it disabled rather than guessing or changing existing production data.
+6. Test all three report types in staging using Admin, Uploader, and Viewer accounts, including uploads, filters, exports, and report totals.
+7. Compare rebuilt Dispatch and Weighbridge outputs against the live portal for identical files and periods before release.
+8. Deploy only after staging sign-off and explicit approval. Keep the current live portal available as rollback until the new portal is accepted.
 
 ## Database boundary
 
@@ -52,6 +52,15 @@ The existing Dispatch Reports and Weighbridge Reports remain authoritative and m
 - Result: **success** — dependency installation and Vite production build completed.
 - Scope: build validation only. It does not deploy the site, apply the draft database migration, or prove the placeholder Dispatch/Weighbridge views are production-ready.
 
+## Updated implementation decision — rebuild independently
+
+The original editable web-portal source is unavailable. This is no longer treated as a blocking dependency. The replacement will be built independently in this repository from the accumulated requirements and verified backend contracts.
+
+- The supplied starter ZIP remains the starting shell for authentication, role-aware navigation, and Packing Plant screens; it is not represented as a complete portal.
+- Dispatch and Weighbridge must be implemented as new web modules. Until each module passes parity testing, its menu entry must clearly identify it as under development and must not imply that it is live-ready.
+- Existing production tables, functions, policies, storage objects, and live portal remain untouched during development.
+- A verified database inventory and report-by-report parity checklist are required before connecting each rebuilt module to production data.
+
 ## Current status
 
-**Staging only.** The live portal and production Supabase database have not been modified by this integration branch. The next blocking dependency is the original editable web-portal source; the supplied starter ZIP and rendered Library snapshot are not sufficient to safely migrate the two existing modules.
+**Independent replacement in staging.** Original source recovery is not required. The live portal and production Supabase database have not been modified by this branch. Next work is to inventory the existing Dispatch/Weighbridge backend contracts and implement their new web screens incrementally.
