@@ -92,8 +92,12 @@ export default function PackingPlantRegisters() {
   };
   const startEditReason = r => { setEditingReason(r.id); setReasonCategory(r.category); setReasonText(r.reason); };
   const loadTotal = loads.reduce((sum, row) => sum + row.quantity, 0);
-  const shiftTotal = loads.filter(x => x.date === loadDate && x.shift === loadShift).reduce((sum, row) => sum + row.quantity, 0);
-  const shiftCount = loads.filter(x => x.date === loadDate && x.shift === loadShift).length;
+  const selectedShiftLoads = loads.filter(x => x.date === loadDate && x.shift === loadShift);
+  const shiftTotal = selectedShiftLoads.reduce((sum, row) => sum + row.quantity, 0);
+  const shiftCount = selectedShiftLoads.length;
+  const ppcTotal = selectedShiftLoads.filter(x => x.product === "PPC").reduce((sum, row) => sum + row.quantity, 0);
+  const opcTotal = selectedShiftLoads.filter(x => x.product === "OPC").reduce((sum, row) => sum + row.quantity, 0);
+  const averagePerTruck = shiftCount ? shiftTotal / shiftCount : 0;
 
   return <section className="pp-registers">
     <div className="section-head"><div><span className="eyebrow">PACKING PLANT · DEVELOPMENT PREVIEW</span><h1>Shift Registers &amp; Masters</h1><p className="muted">Truck loading, attendance and stoppage reasons · local demonstration only</p></div><span className="pill">Not connected to database</span></div>
@@ -118,7 +122,7 @@ export default function PackingPlantRegisters() {
       <div className="stats">
         <div className="stat"><span>Trucks · selected shift</span><b>{shiftCount}</b></div>
         <div className="stat"><span>Quantity · selected shift (MT)</span><b>{shiftTotal.toFixed(2)}</b></div>
-        <div className="stat"><span>Demo register total (MT)</span><b>{loadTotal.toFixed(2)}</b></div>
+        <div className="stat"><span>PPC quantity · selected shift (MT)</span><b>{ppcTotal.toFixed(2)}</b></div>\n        <div className="stat"><span>OPC quantity · selected shift (MT)</span><b>{opcTotal.toFixed(2)}</b></div>\n        <div className="stat"><span>Average quantity per truck (MT)</span><b>{averagePerTruck.toFixed(2)}</b></div>
       </div>
       <div className="panel"><div className="panel-title"><h3>Truck loading register</h3><span className="pill">{loads.length} entries</span></div>
         <div className="table-scroll"><table><thead><tr><th>Date</th><th>Shift</th><th>Vehicle</th><th>Product</th><th className="num">Quantity MT</th><th>Remarks</th><th></th></tr></thead><tbody>
