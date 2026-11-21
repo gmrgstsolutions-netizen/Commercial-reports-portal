@@ -40,9 +40,11 @@ function App() {
   const [weighData, setWeighData] = useState(null);
   const [weighBusy, setWeighBusy] = useState(false);
   const [weighError, setWeighError] = useState("");
+  const [weighFromDate, setWeighFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
+  const [weighToDate, setWeighToDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [rawFromDate, setRawFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
   const [rawToDate, setRawToDate] = useState(new Date().toLocaleDateString("en-CA"));
-  const weighReports = [{key:"datewise",label:"Datewise Report",rpc:"get_weighbridge_report"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Raw Materials",rpc:"get_weighbridge_raw_material_report"}];
+  const weighReports = [{key:"datewise",label:"Datewise Report",rpc:"get_weighbridge_report"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
   const dispatchReports = [
     {key:"state_district",label:"State / District",rpc:"get_state_district_report"},
     {key:"transporter",label:"Transporter-wise",rpc:"get_transporter_dispatch_report"},
@@ -67,7 +69,7 @@ function App() {
       else if (reportType === "Dispatch Reports") loadDispatch();
       else if (reportType === "Weighbridge Reports") loadWeighbridge();
     } else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); setDispatchData(null); }
-  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate]);
+  }, [session, reportDate, reportType, dispatchReportKey, dispatchFromDate, dispatchToDate, weighFromDate, weighToDate]);
 
   async function loadData() {
     setBusy(true); setError("");
@@ -125,7 +127,9 @@ function App() {
     try {
       const args = weighReportKey === "raw_materials"
         ? {p_date_from:rawFromDate || null,p_date_to:rawToDate || null,p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:"",p_limit:2000}
-        : {p_date:reportDate};
+        : weighReportKey === "transaction_wise"
+          ? {p_date_from:weighFromDate,p_date_to:weighToDate}
+          : {p_date:reportDate};
       const {data,error:rpcError} = await supabase.rpc(selected.rpc,args);
       if (rpcError) throw rpcError;
       setWeighData(data ?? null);
@@ -222,13 +226,13 @@ function App() {
         <div className="alert warning">These connected reports are read-only. Invoice-wise results are limited to 1,000 rows; use the date range to narrow the result. Trade / Non-Trade is month-scoped. Financial-year summary requires the account to have All dates permission. Product-wise and other final report layouts will be mapped after their exact data sources are verified.</div>
       </section> : reportType === "Weighbridge Reports" ? <section>
         <div className="section-head"><div><span className="eyebrow">WEIGHBRIDGE REPORTS · READ-ONLY PREVIEW</span><h1>{weighReports.find(x=>x.key===weighReportKey)?.label}</h1><p className="muted">Connected to existing authenticated Supabase report functions. Production data is read only.</p></div>
-          {weighReportKey==="raw_materials" ? <div className="date-tools"><label>From date<input type="date" value={rawFromDate} onChange={e=>setRawFromDate(e.target.value)}/></label><label>To date<input type="date" value={rawToDate} onChange={e=>setRawToDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div> : <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div>}</div>
-        <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{weighReportKey==="raw_materials" ? rawFromDate+" to "+rawToDate : reportDate}</span></div><div className="mapping-grid"><label>Report<select value={weighReportKey} onChange={e=>setWeighReportKey(e.target.value)}>{weighReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div></div>
+          {weighReportKey==="raw_materials" || weighReportKey==="transaction_wise" ? <div className="date-tools"><label>From date<input type="date" value={weighReportKey==="raw_materials"?rawFromDate:weighFromDate} onChange={e=>weighReportKey==="raw_materials"?setRawFromDate(e.target.value):setWeighFromDate(e.target.value)}/></label><label>To date<input type="date" value={weighReportKey==="raw_materials"?rawToDate:weighToDate} onChange={e=>weighReportKey==="raw_materials"?setRawToDate(e.target.value):setWeighToDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div> : <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div>}</div>
+        <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{weighReportKey==="raw_materials" ? rawFromDate+" to "+rawToDate : weighReportKey==="transaction_wise" ? weighFromDate+" to "+weighToDate : reportDate}</span></div><div className="mapping-grid"><label>Report<select value={weighReportKey} onChange={e=>setWeighReportKey(e.target.value)}>{weighReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div></div>
         {weighError && <div className="alert error">{weighError}</div>}
         {weighBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
         {!weighBusy && weighData && <ReportDataView data={weighData}/>}
         {!weighBusy && !weighError && weighData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
-        <div className="alert warning">Card Issue Details is not connected yet: no dedicated Card Issue report RPC was identified. It will not be substituted with another report. Upload workflows and export controls remain pending verification.</div>
+        <div className="alert warning">Card Issue Details is not connected yet: the verified database inventory contains no dedicated Card Issue table or RPC. It will not be substituted with Outside Main Gate. Transaction-wise report requires both dates and a maximum 93-day range. Upload workflows and export controls remain pending verification.</div>
       </section> :
       <>
         {error && <div className="alert error">{error}</div>}
