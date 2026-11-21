@@ -42,3 +42,8 @@ Status: design only; no production database changes have been applied.
 - Audit record is written atomically with receipt inserts.
 - Existing opening balances and receipts remain unchanged by failed imports.
 - Recalculate the stock statement for dates before, on and after imported receipt dates and reconcile totals.
+
+## Front-end preview implementation (21-Nov-2026)
+The portal branch now includes a local-only worksheet selector, automatic column-name suggestions, manual mapping for Bag Type / Receipt Date / Quantity / Source Reference / Remarks, and row-level checks for active bag-type matches, valid dates, positive quantities and duplicate references within the selected workbook. It shows aggregate valid/invalid counts and the first 50 mapped rows. Excel date serials and common day-first date strings are normalized for preview.
+
+This does **not** detect duplicates already stored in Supabase, submit records, or provide an audit trail. The Confirm and Submit control remains disabled. Production import must wait for the database RPC and role tests described above, plus inspection of the actual receipt workbook to confirm its sheet names, column headings and data formats.
