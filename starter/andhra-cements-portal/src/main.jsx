@@ -24,6 +24,11 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState([]);
+  const [allRows, setAllRows] = useState([]);
+  const [workbook, setWorkbook] = useState(null);
+  const [sheetName, setSheetName] = useState("");
+  const [headers, setHeaders] = useState([]);
+  const [mapping, setMapping] = useState({bagType:"",receiptDate:"",quantity:"",sourceRef:"",remarks:""});
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -71,18 +76,39 @@ function App() {
   const stockRows = stockStatement?.rows ?? [];
   const totals = stockStatement?.totals ?? {};
 
-  async function parseFile(f) {
-    setFile(f); setNotice(""); setPreview([]);
-    try {
-      const data = await f.arrayBuffer();
-      const wb = XLSX.read(data,{type:"array",cellDates:true});
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet,{defval:""});
-      if (!rows.length) throw new Error("The selected sheet has no data rows.");
-      setPreview(rows.slice(0,200));
-      setNotice(`${rows.length} data rows found. Showing first ${Math.min(rows.length,200)} rows for inspection. No database records have been changed.`);
-    } catch(e) { setNotice(`Could not read this workbook: ${e.message}`); }
+  function applyWorksheet(wb, name) {
+    const sheet = wb?.Sheets?.[name];
+    if (!sheet) return;
+    const rows = XLSX.utils.sheet_to_json(sheet,{defval:"",raw:true});
+    if (!rows.length) { setAllRows([]); setPreview([]); setHeaders([]); setNotice("The selected worksheet has no data rows."); return; }
+    const cols = Object.keys(rows[0]);
+    const find = terms => cols.find(h => terms.some(t => h.toLowerCase().replace(/[^a-z0-9]/g,"").includes(t)));
+    setHeaders(cols); setAllRows(rows); setPreview(rows.slice(0,200));
+    setMapping({bagType:find(["bagtype","bagname","packingmaterial","material"])||"",receiptDate:find(["receiptdate","date","postingdate"])||"",quantity:find(["receiptqty","quantity","qty","bags","received"])||"",sourceRef:find(["sourceref","referenceno","challanno","docno","invoiceno"])||"",remarks:find(["remarks","narration","description"])||""});
+    setNotice(rows.length.toLocaleString("en-IN")+" data rows found in “"+name+"”. Showing up to 200 rows below. This is a local preview only.");
   }
+  async function parseFile(f) {
+    setFile(f); setNotice(""); setPreview([]); setAllRows([]); setHeaders([]); setWorkbook(null);
+    try { const data=await f.arrayBuffer(); const wb=XLSX.read(data,{type:"array",cellDates:true}); if(!wb.SheetNames.length) throw new Error("No worksheets were found."); setWorkbook(wb); setSheetName(wb.SheetNames[0]); applyWorksheet(wb,wb.SheetNames[0]); }
+    catch(e) { setNotice("Could not read this workbook: "+e.message); }
+  }
+  const mappedRows = useMemo(() => {
+    const seen=new Set();
+    return allRows.map((row,index) => {
+      const bag=String(mapping.bagType ? row[mapping.bagType] ?? "" : "").trim();
+      const date=toISODate(mapping.receiptDate ? row[mapping.receiptDate] : "");
+      const qty=Number(String(mapping.quantity ? row[mapping.quantity] ?? "" : "").replace(/,/g,"").trim());
+      const bagMatch=bagTypes.find(b=>[b.name,b.code].some(v=>String(v ?? "").trim().toLowerCase()===bag.toLowerCase()));
+      const ref=mapping.sourceRef ? String(row[mapping.sourceRef] ?? "").trim() : "";
+      const key=bagMatch && date && ref ? String(bagMatch.id)+"|"+date+"|"+ref.toLowerCase() : "";
+      const duplicate=Boolean(key && seen.has(key)); if(key) seen.add(key);
+      const errors=[]; if(!bag) errors.push("Bag type missing"); else if(!bagMatch) errors.push("Bag type not matched to active portal list");
+      if(!date) errors.push("Receipt date missing/invalid"); if(!Number.isFinite(qty)||qty<=0) errors.push("Quantity must be greater than zero"); if(duplicate) errors.push("Duplicate reference in this workbook");
+      return {index:index+1,bag,date,quantity:qty,ref,errors};
+    });
+  },[allRows,mapping,bagTypes]);
+  const validCount=mappedRows.filter(r=>r.errors.length===0).length;
+  const invalidCount=mappedRows.length-validCount;
 
   if (!supabase) return <SetupScreen/>;
   if (!session) return <div className="login-wrap"><form className="login-card" onSubmit={signIn}>
@@ -126,11 +152,19 @@ function App() {
         </section>}
         {tab==="Upload Data" && <section><div className="section-head"><div><span className="eyebrow">DATA IMPORT</span><h1>Upload Packing Plant Data</h1><p className="muted">Select a workbook to inspect its contents before any import is enabled.</p></div></div>
           <div className="panel"><div className="dropzone"><FileSpreadsheet size={34}/><h3>Select Excel or CSV workbook</h3><p>Supported: .xlsx, .xls, .csv</p><input type="file" accept=".xlsx,.xls,.csv" onChange={e=>e.target.files?.[0]&&parseFile(e.target.files[0])}/></div>
-          {file && <p className="fileline"><b>{file.name}</b><button className="text-btn" onClick={()=>{setFile(null);setPreview([]);setNotice("");}}>Clear selected file</button></p>}
+          {file && <p className="fileline"><b>{file.name}</b><button className="text-btn" onClick={()=>{setFile(null);setWorkbook(null);setSheetName("");setHeaders([]);setAllRows([]);setPreview([]);setNotice("");}}>Clear selected file</button></p>}
           {notice && <div className="alert">{notice}</div>}
-          {preview.length>0 && <><h3>Import preview</h3><div className="table-scroll preview"><table><thead><tr>{Object.keys(preview[0]).map(k=><th key={k}>{k}</th>)}</tr></thead><tbody>{preview.slice(0,12).map((r,i)=><tr key={i}>{Object.values(r).map((v,j)=><td key={j}>{String(v)}</td>)}</tr>)}</tbody></table></div>
-          <div className="alert warning">This screen currently provides preview only. The existing database save function is restricted to Admin; the required Uploader write permission and a dedicated import audit workflow are not yet implemented. No rows are submitted from this screen.</div>
-          <button className="primary" disabled>Confirm and Submit — pending secure import setup</button></>}
+          {workbook && <div className="mapping-panel">
+            <h3>1. Select worksheet and map columns</h3>
+            <label>Worksheet<select value={sheetName} onChange={e=>{setSheetName(e.target.value);applyWorksheet(workbook,e.target.value);}}>{workbook.SheetNames.map(n=><option key={n}>{n}</option>)}</select></label>
+            <div className="mapping-grid">{[["bagType","Bag Type *"],["receiptDate","Receipt Date *"],["quantity","Quantity *"],["sourceRef","Source Reference"],["remarks","Remarks"]].map(([key,label])=><label key={key}>{label}<select value={mapping[key]} onChange={e=>setMapping(m=>({...m,[key]:e.target.value}))}><option value="">— Select column —</option>{headers.map(h=><option key={h} value={h}>{h}</option>)}</select></label>)}</div>
+            <h3>2. Validation result</h3>
+            <div className="stats compact"><div className="stat"><span>Total rows</span><b>{mappedRows.length.toLocaleString("en-IN")}</b></div><div className="stat"><span>Valid rows</span><b>{validCount.toLocaleString("en-IN")}</b></div><div className="stat"><span>Rows needing correction</span><b>{invalidCount.toLocaleString("en-IN")}</b></div></div>
+            <div className="table-scroll preview"><table><thead><tr><th>Row</th><th>Bag Type</th><th>Receipt Date</th><th className="num">Quantity</th><th>Source Reference</th><th>Validation</th></tr></thead><tbody>{mappedRows.slice(0,50).map(r=><tr key={r.index}><td>{r.index}</td><td>{r.bag||"—"}</td><td>{r.date||"—"}</td><td className="num">{Number.isFinite(r.quantity)?fmt(r.quantity):"—"}</td><td>{r.ref||"—"}</td><td>{r.errors.length?<span className="validation-error">{r.errors.join("; ")}</span>:<span className="validation-ok">Ready</span>}</td></tr>)}</tbody></table></div>
+            {mappedRows.length>50 && <p className="footnote">Showing first 50 mapped rows. All {mappedRows.length.toLocaleString("en-IN")} rows are included in the validation count.</p>}
+            <div className="alert warning">Local validation only. No records have been submitted. Database-side Admin/Uploader authorization, atomic duplicate handling and import audit logging must be completed before submission can be enabled.</div>
+            <button className="primary" disabled>Confirm and Submit — secure import setup pending</button>
+          </div>}
           </div>
         </section>}
         {tab==="Upload History" && <section><div className="section-head"><div><span className="eyebrow">AUDIT TRAIL</span><h1>Packing Plant Upload History</h1></div><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div><div className="panel"><p className="muted">The current Packing Plant schema does not yet contain a dedicated import-history table. Existing receipt records are listed below as recorded transactions.</p><div className="table-scroll"><table><thead><tr><th>Receipt date</th><th>Bag type</th><th>Quantity</th><th>Reference</th><th>Remarks</th><th>Created at</th></tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table></div></div></section>}
@@ -140,5 +174,12 @@ function App() {
   </div>;
 }
 function SetupScreen(){return <div className="login-wrap"><div className="login-card"><div className="brand-mark">AC</div><h1>Portal setup required</h1><p>Add the Supabase project URL and public anon/publishable key to a local <code>.env</code> file using <code>.env.example</code>. Never use a service-role key in this browser application.</p></div></div>}
+function toISODate(value){
+  if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+  if(typeof value==="number" && value>0){const d=XLSX.SSF.parse_date_code(value);if(d)return d.y+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0");}
+  const s=String(value??"").trim();if(!s)return "";
+  let m=s.match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})$/);if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  m=s.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);if(m)return m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");return "";
+}
 function fmt(v){return Number(v||0).toLocaleString("en-IN",{maximumFractionDigits:2})}
 createRoot(document.getElementById("root")).render(<App/>);
