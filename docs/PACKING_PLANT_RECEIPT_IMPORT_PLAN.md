@@ -47,3 +47,23 @@ Status: design only; no production database changes have been applied.
 The portal branch now includes a local-only worksheet selector, automatic column-name suggestions, manual mapping for Bag Type / Receipt Date / Quantity / Source Reference / Remarks, and row-level checks for active bag-type matches, valid dates, positive quantities and duplicate references within the selected workbook. It shows aggregate valid/invalid counts and the first 50 mapped rows. Excel date serials and common day-first date strings are normalized for preview.
 
 This does **not** detect duplicates already stored in Supabase, submit records, or provide an audit trail. The Confirm and Submit control remains disabled. Production import must wait for the database RPC and role tests described above, plus inspection of the actual receipt workbook to confirm its sheet names, column headings and data formats.
+
+## Database migration draft (21-Nov-2026)
+A review-only migration is staged at `supabase/migrations/20261121120000_packing_bag_receipt_import_audit.sql`. It adds:
+- A receipt import batch audit table with source filename, SHA-256 checksum, user, submitted/inserted/skipped counts, status and timestamp.
+- RLS read access for Admins across all batches and Uploaders for their own batches. Viewer history access is not granted by this draft pending a clear visibility decision.
+- A single SECURITY DEFINER RPC, `import_packing_bag_receipts(file_name, file_sha256, entries)`, that accepts active Admin and Uploader roles, validates rows and active bag types, caps an upload at 2,000 rows, inserts receipts and writes the audit result in one transaction.
+- A transaction advisory lock and unique file checksum so retrying the exact same workbook does not insert it twice. Existing receipt-row uniqueness is also honored through `ON CONFLICT DO NOTHING`.
+
+The migration has **not** been applied to Supabase. The existing `save_packing_bag_receipts(jsonb)` remains unchanged and Admin-only. Do not enable the new UI submit action until the migration is reviewed and applied in a controlled environment.
+
+### Required pre-production tests
+1. Active Admin import succeeds and creates an audit row.
+2. Active Uploader import succeeds and creates an audit row.
+3. Viewer, inactive profile, unauthenticated caller and dispatch-only/weighbridge-only roles are denied.
+4. Missing/invalid checksum, empty or non-array payload, over-2,000 rows, invalid/inactive bag type, missing date and non-positive quantity are rejected without partial receipt inserts.
+5. Repeating the same file checksum returns the prior batch result and does not insert additional receipts.
+6. A row conflict is counted as skipped; inserted + skipped equals submitted.
+7. Admin can read all audit batches; Uploader can read only their own; Viewer cannot read audit rows under this draft.
+8. Existing opening-balance and bag-type save functions remain Admin-only; stock statement results reconcile before and after imports.
+9. Confirm the actual receipt workbook's column mapping and whether it contains a stable source reference. If no stable reference exists, exact-file checksum idempotency protects repeated whole-file uploads, but it cannot identify semantically duplicate rows across different workbooks.
