@@ -47,6 +47,7 @@ function App() {
   const [rawToDate, setRawToDate] = useState(new Date().toLocaleDateString("en-CA"));
   const weighReports = [{key:"datewise",label:"Datewise Report",rpc:"get_weighbridge_report"},{key:"product_summary",label:"Consolidated Product Summary",rpc:"get_weighbridge_product_summary"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
   const dispatchReports = [
+    {key:"product_wise",label:"Product-wise Dispatch",rpc:"get_state_district_report"},
     {key:"state_district",label:"State / District",rpc:"get_state_district_report"},
     {key:"transporter",label:"Transporter-wise",rpc:"get_transporter_dispatch_report"},
     {key:"under_loading",label:"Under Loading",rpc:"get_under_loading_report"},
@@ -250,7 +251,7 @@ function App() {
         {dispatchReportKey==="invoice_wise" && <div className="panel"><div className="panel-title"><h3>Invoice-wise filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_invno","Invoice number"],["p_customer","Customer"],["p_warehouse","Warehouse"],["p_itemcode","Product code"],["p_saleschannel","Sales channel"],["p_oano","OA number"],["p_packslipno","Packslip number"],["p_vehicleno","Vehicle number"],["p_shippingstate","Shipping state"],["p_district","District"],["p_transporter","Transporter"]].map(([key,label])=><label key={key}>{label}<input value={invoiceFilters[key]} onChange={e=>setInvoiceFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label.toLowerCase()}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadDispatch}>Search invoices</button><button className="text-btn" onClick={()=>{const cleared={p_invno:"",p_customer:"",p_warehouse:"",p_itemcode:"",p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",p_shippingstate:"",p_district:"",p_transporter:""};setInvoiceFilters(cleared);loadDispatch(cleared);}}>Clear filters</button></div></div>}
         {dispatchError && <div className="alert error">{dispatchError}</div>}
         {dispatchBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
-        {!dispatchBusy && dispatchData && <ReportDataView data={dispatchData}/>}
+        {!dispatchBusy && dispatchData && (dispatchReportKey==="product_wise" ? <ProductWiseDispatchView data={dispatchData}/> : <ReportDataView data={dispatchData}/>)}}
         {!dispatchBusy && !dispatchError && dispatchData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
         <div className="alert warning">These connected reports are read-only. Invoice-wise results are limited to 1,000 rows; use the date range to narrow the result. Trade / Non-Trade is month-scoped. Financial-year summary requires the account to have All dates permission. Product-wise and other final report layouts will be mapped after their exact data sources are verified.</div>
       </section> : reportType === "Weighbridge Reports" ? <section>
@@ -306,6 +307,37 @@ function App() {
       </>}
       <footer>Commercial Reports – Andhra Cements <span>Secure portal · {busy?"Refreshing…":"Connected"}</span></footer>
     </main>
+  </div>;
+}
+
+function ProductWiseDispatchView({data}) {
+  const grouped = new Map();
+  const add = (label,row) => {
+    const current=grouped.get(label)||{product:label,on_date_qty:0,mtd_qty:0,ytd_qty:0};
+    current.on_date_qty+=Number(row.on_date_qty||0);
+    current.mtd_qty+=Number(row.mtd_qty||0);
+    current.ytd_qty+=Number(row.ytd_qty||0);
+    grouped.set(label,current);
+  };
+  for (const row of data?.products||[]) {
+    const code=String(row.product_code||"").trim().toUpperCase();
+    let label=code||"Unmapped Product";
+    if (code==="OPC53B") label="OPC53 Bulk";
+    else if (code.includes("OPC")||code==="CEMENT") label="OPC53 Bag";
+    else if (code==="PPCB") label="PPC Bulk";
+    else if (code==="PPCL") label="PPC Laminated";
+    else if (code.includes("PPC")) label="PPC Bag";
+    add(label,row);
+  }
+  if (data?.clinker) add("Clinker",data.clinker);
+  const rows=[...grouped.values()].sort((a,b)=>a.product.localeCompare(b.product));
+  const totals=rows.reduce((t,r)=>({on_date_qty:t.on_date_qty+r.on_date_qty,mtd_qty:t.mtd_qty+r.mtd_qty,ytd_qty:t.ytd_qty+r.ytd_qty}),{on_date_qty:0,mtd_qty:0,ytd_qty:0});
+  return <div className="panel"><div className="panel-title"><h3>Product-wise Dispatch Summary</h3><span className="pill">{data?.report_date||""} · MT</span></div>
+    <div className="table-scroll"><table><thead><tr><th>Sl. No.</th><th>Product</th><th className="num">On Date (MT)</th><th className="num">MTD (MT)</th><th className="num">YTD (MT)</th></tr></thead><tbody>
+      {rows.map((r,i)=><tr key={r.product}><td>{i+1}</td><td><b>{r.product}</b></td><td className="num">{fmt(r.on_date_qty)}</td><td className="num">{fmt(r.mtd_qty)}</td><td className="num">{fmt(r.ytd_qty)}</td></tr>)}
+      <tr className="total"><td colSpan="2">Grand Total</td><td className="num">{fmt(totals.on_date_qty)}</td><td className="num">{fmt(totals.mtd_qty)}</td><td className="num">{fmt(totals.ytd_qty)}</td></tr>
+    </tbody></table></div>
+    <p className="footnote">Product totals are grouped using the approved mapping: OPC-related to OPC53 Bag, OPC53B to OPC53 Bulk, PPC-related to PPC Bag, PPCB to PPC Bulk, PPCL as PPC Laminated, and CLN/CLINKER as Clinker. Source: the authenticated State/District report’s product totals.</p>
   </div>;
 }
 
