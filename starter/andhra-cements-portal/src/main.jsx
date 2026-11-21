@@ -114,7 +114,7 @@ function App() {
   }
 
 
-  async function loadDispatch() {
+  async function loadDispatch(filterOverride = null) {
     if (!supabase || !session?.user) return;
     const selected = dispatchReports.find(x => x.key === dispatchReportKey);
     if (!selected) return;
@@ -123,7 +123,7 @@ function App() {
       let args={p_date:reportDate};
       if (dispatchReportKey==="invoice_wise") args={
         p_months:[],p_date_from:dispatchFromDate || null,p_date_to:dispatchToDate || null,
-        ...invoiceFilters,p_dispatchdate:"",p_limit:1000
+        ...(filterOverride || invoiceFilters),p_dispatchdate:"",p_limit:1000
       };
       else if (dispatchReportKey==="trade_non_trade") args={p_month:reportDate};
       else if (dispatchReportKey==="monthly_yearly") {
@@ -245,7 +245,7 @@ function App() {
         <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{dispatchReportKey==="invoice_wise"?dispatchFromDate+" to "+dispatchToDate:dispatchReportKey==="monthly_yearly"?"FY "+(new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear():new Date(reportDate+"T00:00:00").getFullYear()-1)+"-"+String((new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear()+1:new Date(reportDate+"T00:00:00").getFullYear()) ).slice(-2):reportDate}</span></div>
           <div className="mapping-grid"><label>Report<select value={dispatchReportKey} onChange={e=>setDispatchReportKey(e.target.value)}>{dispatchReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div>
         </div>
-        {dispatchReportKey==="invoice_wise" && <div className="panel"><div className="panel-title"><h3>Invoice-wise filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_invno","Invoice number"],["p_customer","Customer"],["p_warehouse","Warehouse"],["p_itemcode","Product code"],["p_saleschannel","Sales channel"],["p_oano","OA number"],["p_packslipno","Packslip number"],["p_vehicleno","Vehicle number"],["p_shippingstate","Shipping state"],["p_district","District"],["p_transporter","Transporter"]].map(([key,label])=><label key={key}>{label}<input value={invoiceFilters[key]} onChange={e=>setInvoiceFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label.toLowerCase()}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadDispatch}>Search invoices</button><button className="text-btn" onClick={()=>{setInvoiceFilters({p_invno:"",p_customer:"",p_warehouse:"",p_itemcode:"",p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",p_shippingstate:"",p_district:"",p_transporter:""});setTimeout(loadDispatch,0);}}>Clear filters</button></div></div>}
+        {dispatchReportKey==="invoice_wise" && <div className="panel"><div className="panel-title"><h3>Invoice-wise filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_invno","Invoice number"],["p_customer","Customer"],["p_warehouse","Warehouse"],["p_itemcode","Product code"],["p_saleschannel","Sales channel"],["p_oano","OA number"],["p_packslipno","Packslip number"],["p_vehicleno","Vehicle number"],["p_shippingstate","Shipping state"],["p_district","District"],["p_transporter","Transporter"]].map(([key,label])=><label key={key}>{label}<input value={invoiceFilters[key]} onChange={e=>setInvoiceFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label.toLowerCase()}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadDispatch}>Search invoices</button><button className="text-btn" onClick={()=>{const cleared={p_invno:"",p_customer:"",p_warehouse:"",p_itemcode:"",p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",p_shippingstate:"",p_district:"",p_transporter:""};setInvoiceFilters(cleared);loadDispatch(cleared);}}>Clear filters</button></div></div>}
         {dispatchError && <div className="alert error">{dispatchError}</div>}
         {dispatchBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
         {!dispatchBusy && dispatchData && <ReportDataView data={dispatchData}/>}
@@ -324,8 +324,8 @@ function toISODate(value){
   if(value instanceof Date && !Number.isNaN(value.getTime())) return value.getFullYear()+"-"+String(value.getMonth()+1).padStart(2,"0")+"-"+String(value.getDate()).padStart(2,"0");
   if(typeof value==="number" && value>0){const d=XLSX.SSF.parse_date_code(value);if(d)return d.y+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0");}
   const s=String(value??"").trim();if(!s)return "";
-  let m=s.match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})$/);if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
-  m=s.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);if(m)return m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");return "";
+  let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");return "";
 }
 function fmt(v){return Number(v||0).toLocaleString("en-IN",{maximumFractionDigits:2})}
 createRoot(document.getElementById("root")).render(<App/>);
