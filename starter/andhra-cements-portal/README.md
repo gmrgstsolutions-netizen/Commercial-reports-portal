@@ -8,7 +8,7 @@ This is a **separate, non-production starter project**. It is not connected to t
 - Calls the existing `get_packing_bag_stock_statement(p_date)` database RPC for the stock statement. The database function calculates opening balance, receipts (OD/MTD/YTD), consumption (OD/MTD/YTD), damages (OD/MTD/YTD), and closing balance.
 - Shows recorded receipt rows in the Upload History view.
 - Provides a local Excel/CSV preview only. It does **not** submit uploaded rows to the database.
-- Dispatch and Weighbridge remain explicitly marked placeholders because the original live portal implementation was not part of the uploaded source package.
+- Dispatch and Weighbridge are currently marked as under development. They will be rebuilt independently because the original live portal source is unavailable. Keep using the existing live portal for those workflows until the new modules pass parity testing.
 
 ## Existing database integration verified on 21-Nov-2026
 The Supabase project `arimgpcocnbuumwfxkmp` is active. The following public tables exist and have RLS enabled:
@@ -41,4 +41,4 @@ Before enabling Admin + Uploader receipt uploads:
 7. Run `npm run build` to create `dist/`.
 
 ## Deployment
-No hosting configuration or production deployment is included. Do not publish this starter as a replacement until the original Dispatch and Weighbridge functionality has been recovered/rebuilt and regression-tested, and the Packing Plant upload permissions/import audit workflow is complete.
+No hosting configuration or public deployment is included yet. The replacement must be completed and tested in a separate staging environment, including rebuilt Dispatch and Weighbridge parity, Packing Plant import permissions/audit workflow, and role checks. The existing live portal must remain available and unchanged until explicit approval to switch.
