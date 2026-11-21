@@ -19,6 +19,7 @@ function App() {
   const [tab, setTab] = useState("Reports");
   const [bagTypes, setBagTypes] = useState([]);
   const [stockStatement, setStockStatement] = useState(null);
+  const [receipts, setReceipts] = useState([]);
   const [reportDate, setReportDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState(null);
@@ -34,23 +35,25 @@ function App() {
 
   useEffect(() => {
     if (session?.user) loadData();
-    else { setProfile(null); setBagTypes([]); setStockStatement(null); }
+    else { setProfile(null); setBagTypes([]); setStockStatement(null); setReceipts([]); }
   }, [session, reportDate]);
 
   async function loadData() {
     setBusy(true); setError("");
     try {
-      const [p,b] = await Promise.all([
+      const [p,b,r] = await Promise.all([
         supabase.from("profiles").select("id,email,full_name,role,is_active,must_change_password").eq("id",session.user.id).single(),
-        supabase.from("packing_bag_types").select("*").eq("is_active",true).order("sort_order")
+        supabase.from("packing_bag_types").select("*").eq("is_active",true).order("sort_order"),
+        supabase.from("packing_bag_receipts").select("*").order("receipt_date",{ascending:false}).limit(1000)
       ]);
       if (p.error) throw p.error;
       if (!p.data.is_active) { await supabase.auth.signOut(); throw new Error("This account is inactive. Contact the administrator."); }
       setProfile(p.data);
       if (b.error) throw b.error;
+      if (r.error) throw r.error;
       const {data: statement, error: statementError} = await supabase.rpc("get_packing_bag_stock_statement", {p_date: reportDate});
       if (statementError) throw statementError;
-      setBagTypes(b.data||[]); setStockStatement(statement||null);
+      setBagTypes(b.data||[]); setStockStatement(statement||null); setReceipts(r.data||[]);
     } catch(e) { setError(e.message || "Unable to load portal data."); }
     finally { setBusy(false); }
   }
