@@ -149,7 +149,7 @@ export default function PackingPlantRegisters() {
           <label>Staff category<select value={employeeRole} onChange={e=>setEmployeeRole(e.target.value)}>{["Packer Operator","Loading Operator","Bulk Loading Operator","Belt Helper","Packing PLC Operator","Truck Loading Operator","Shift Incharge"].map(r=><option key={r}>{r}</option>)}</select></label>
         </div>
         <button type="button" className="secondary" onClick={addEmployee}>Add demo employee</button>
-        <div className="table-scroll"><table><thead><tr><th>Employee</th><th>Category</th><th>Regular attended days this month · demo count</th></tr></thead><tbody>{employees.map(e=><tr key={e.id}><td>{e.name}</td><td>{e.role}</td><td>{monthAttendanceCount.find(x=>x.id===e.id)?.days || 0}</td></tr>)}</tbody></table></div>
+        <div className="table-scroll"><table><thead><tr><th>Employee</th><th>Category</th><th>Prior regular attended days · demo</th></tr></thead><tbody>{employees.map(e=><tr key={e.id}><td>{e.name}</td><td>{e.role}</td><td><input aria-label={"Prior regular days "+e.name} type="number" min="0" max="31" value={e.demoPreviousRegularDays || 0} onChange={ev=>setEmployees(rows=>rows.map(x=>x.id===e.id?{...x,demoPreviousRegularDays:Math.max(0,Math.min(31,Number(ev.target.value)||0))}:x))}/></td></tr>)}</tbody></table></div>
       </div>
       <div className="panel">
         <div className="panel-title"><h3>Public holidays &amp; festivals</h3></div>
