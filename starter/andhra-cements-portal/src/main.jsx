@@ -154,16 +154,19 @@ function App() {
     if (!selected) return;
     setWeighBusy(true); setWeighError("");
     try {
+      const monthStart = new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA");
+      const today = new Date().toLocaleDateString("en-CA");
+      const transactionFrom = weighFromDate || monthStart;
+      const transactionTo = weighToDate || today;
       if (weighReportKey==="transaction_wise") {
-        if (!weighFromDate || !weighToDate) throw new Error("Select both From date and To date.");
-        const span=(new Date(weighToDate+"T00:00:00")-new Date(weighFromDate+"T00:00:00"))/86400000;
+        const span=(new Date(transactionTo+"T00:00:00")-new Date(transactionFrom+"T00:00:00"))/86400000;
         if (span<0) throw new Error("From date must be before To date.");
         if (span>92) throw new Error("Transaction-wise report supports a maximum 93-day date range.");
       }
       const args = weighReportKey === "raw_materials"
-        ? {p_date_from:rawFromDate || null,p_date_to:rawToDate || null,p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:"",p_limit:2000}
+        ? {p_date_from:rawFromDate || monthStart,p_date_to:rawToDate || today,p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:"",p_limit:2000}
         : weighReportKey === "transaction_wise"
-          ? {p_date_from:weighFromDate,p_date_to:weighToDate}
+          ? {p_date_from:transactionFrom,p_date_to:transactionTo}
           : {p_date:reportDate};
       const {data,error:rpcError} = await supabase.rpc(selected.rpc,args);
       if (rpcError) throw rpcError;
