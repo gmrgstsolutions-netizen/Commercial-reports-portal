@@ -31,6 +31,9 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build portal
         working-directory: starter/andhra-cements-portal
+        env:
+          VITE_SUPABASE_URL: https://arimgpcocnbuumwfxkmp.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_5vhp__aUNrAC4vVmZ-IKRA_XWp_Fm8H
         run: npm run build
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
