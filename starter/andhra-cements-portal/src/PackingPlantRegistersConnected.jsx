@@ -62,7 +62,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    if(missing.length)throw new Error("Missing column heading(s): "+missing.join(", ")+". Use ID No., Name, Job, Mobile No.");
    const parsed=grid.slice(1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>({
     employee_code:String(row[ix.code]??"").trim(),full_name:String(row[ix.name]??"").trim(),
-    staff_category:(()=>{const job=String(row[ix.job]??"").trim();return /^packer$/i.test(job)?"Packer Operator":job;})(),mobile_no:String(row[ix.mobile]??"").trim(),source_row:i+2
+    staff_category:(()=>{const job=String(row[ix.job]??"").trim();const aliases={"packer":"Packer Operator","loader":"Loading Operator","helper":"Belt Helper","bulker":"Bulk Loading Operator"};return aliases[job.toLowerCase()]??job;})(),mobile_no:String(row[ix.mobile]??"").trim(),source_row:i+2
    }));
    if(!parsed.length)throw new Error("No employee rows found below the headings.");
    const errors=[];const seen=new Set();
