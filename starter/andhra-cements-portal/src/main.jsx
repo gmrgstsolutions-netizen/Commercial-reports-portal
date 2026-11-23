@@ -18,8 +18,8 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [reportType, setReportType] = useState("");
-  const [shiftInchargeName, setShiftInchargeName] = useState("");
+  const [reportType, setReportType] = useState(() => sessionStorage.getItem("ac_report_type") || "");
+  const [shiftInchargeName, setShiftInchargeName] = useState(() => sessionStorage.getItem("ac_shift_incharge") || "");
   const [tab, setTab] = useState("Reports");
   const [bagTypes, setBagTypes] = useState([]);
   const [stockStatement, setStockStatement] = useState(null);
@@ -176,10 +176,29 @@ function App() {
     e.preventDefault(); setError("");
     if (!reportType || !shiftInchargeName.trim()) return setError("Select a Report Type and enter the Shift Incharge Name.");
     if (!supabase) return setError("Portal configuration is missing. Add the Supabase URL and public anon/publishable key in .env.");
-    const {error} = await supabase.auth.signInWithPassword({email,password});
-    if (error) setError(error.message);
+    const {data, error} = await supabase.auth.signInWithPassword({email,password});
+    if (error) { setError(error.message); return; }
+    sessionStorage.setItem("ac_report_type", reportType);
+    sessionStorage.setItem("ac_shift_incharge", shiftInchargeName.trim());
+    if (reportType === "Dispatch Reports" || reportType === "Weighbridge Reports") {
+      const {data: account} = await supabase.from("profiles").select("role,is_active").eq("id", data.user.id).single();
+      if (account?.is_active && ["admin","uploader","dispatch_uploader","weighbridge_uploader"].includes(account.role)) {
+        const {error: signoffError} = await supabase.rpc("save_shift_incharge", {
+          p_report_type: reportType === "Dispatch Reports" ? "dispatch" : "weighbridge",
+          p_shift_incharge_name: shiftInchargeName.trim()
+        });
+        if (signoffError) setError("Signed in, but Shift Incharge details could not be saved: " + signoffError.message);
+      }
+    }
   }
-  async function signOut() { await supabase.auth.signOut(); setPassword(""); }
+  async function signOut() {
+    await supabase.auth.signOut();
+    setPassword("");
+    sessionStorage.removeItem("ac_report_type");
+    sessionStorage.removeItem("ac_shift_incharge");
+    setReportType("");
+    setShiftInchargeName("");
+  }
 
   const isAdmin = profile?.role === "admin";
   const canUpload = isAdmin || ["uploader"].includes(profile?.role);
