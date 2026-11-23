@@ -52,22 +52,42 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
  useEffect(()=>{load();},[date,shift]);
  useEffect(()=>{if(section==="Bag Counting Upload")loadBagSessions();},[section,bagReportFrom,bagReportTo]);
  
+ function invoiceCutoffDate(start,end){
+  const isMonthEnd=d=>{const next=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1);return next.getDate()===1;};
+  const monthEndActivity=isMonthEnd(start)||isMonthEnd(end)||start.getMonth()!==end.getMonth()||start.getFullYear()!==end.getFullYear();
+  const cutoff=new Date(end.getTime()+(monthEndActivity?48:8)*60*60*1000);
+  return {date:isoLocalDate(cutoff),hours:monthEndActivity?48:8};
+ }
+ async function fetchDispatchForSessions(sessions){
+  const bounds=sessions.map(x=>{const start=new Date(x.loading_start),end=new Date(x.loading_end);return {from:isoLocalDate(start),to:invoiceCutoffDate(start,end).date};});
+  let cursor=new Date(Math.min(...bounds.map(x=>new Date(x.from+"T00:00:00").getTime())));
+  const finalDate=new Date(Math.max(...bounds.map(x=>new Date(x.to+"T00:00:00").getTime())));
+  const all=[];
+  while(cursor<=finalDate){
+   const chunkEnd=new Date(cursor);chunkEnd.setDate(chunkEnd.getDate()+3);
+   if(chunkEnd>finalDate)chunkEnd.setTime(finalDate.getTime());
+   const {data,error}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:isoLocalDate(cursor),p_date_to:isoLocalDate(chunkEnd)});
+   if(error)throw error;
+   all.push(...(data||[]));
+   cursor=new Date(chunkEnd);cursor.setDate(cursor.getDate()+1);
+  }
+  return all;
+ }
  async function loadBagSessions(){
   if(!bagReportFrom||!bagReportTo||bagReportFrom>bagReportTo){setNotice("Select a valid Bag Counting date range.");return;}
   const {data,error}=await supabase.from("pp_bag_counting_sessions").select("*").gte("business_date",bagReportFrom).lte("business_date",bagReportTo).order("loading_start");
   if(error){setNotice("Unable to load bag-counting sessions: "+error.message);return;}
   setBagSessions(data||[]);
   if(!(data||[]).length){setBagMatches([]);return;}
-  const fromDate=new Date(bagReportFrom+"T00:00:00");fromDate.setDate(fromDate.getDate()-1);
-  const toDate=new Date(bagReportTo+"T00:00:00");toDate.setDate(toDate.getDate()+1);
-  const {data:dispatch,error:dispatchError}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:isoLocalDate(fromDate),p_date_to:isoLocalDate(toDate)});
-  if(dispatchError){setNotice("Sessions loaded, but dispatch matching failed: "+dispatchError.message);return;}
-  setBagMatches((data||[]).map(x=>{
-   const start=new Date(x.loading_start),end=new Date(x.loading_end);
-   const startDate=isoLocalDate(start),endDate=isoLocalDate(end);
-   const match=(dispatch||[]).filter(d=>String(d.vehicle_no||"").replace(/\\s/g,"").toUpperCase()===x.vehicle_number.replace(/\\s/g,"").toUpperCase()&&d.dispatch_date>=startDate&&d.dispatch_date<=endDate);
-   return {...x,packer:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3",counter:x.counter_no,truck:x.vehicle_number,shiftCode:x.shift_code,start,end,duration:x.duration_seconds,dispatchLines:match,importKey:x.import_key};
-  }));
+  try{
+   const dispatch=await fetchDispatchForSessions(data);
+   setBagMatches(data.map(x=>{
+    const start=new Date(x.loading_start),end=new Date(x.loading_end),startDate=isoLocalDate(start),cutoff=invoiceCutoffDate(start,end);
+    const vehicle=String(x.vehicle_number||"").replace(/\s/g,"").toUpperCase();
+    const match=dispatch.filter(d=>String(d.vehicle_no||"").replace(/\s/g,"").toUpperCase()===vehicle&&d.dispatch_date>=startDate&&d.dispatch_date<=cutoff.date);
+    return {...x,packer:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3",counter:x.counter_no,truck:x.vehicle_number,shiftCode:x.shift_code,start,end,duration:x.duration_seconds,dispatchLines:match,invoiceWindowHours:cutoff.hours,invoiceCutoffDate:cutoff.date,importKey:x.import_key};
+   }));
+  }catch(dispatchError){setNotice("Sessions loaded, but dispatch matching failed: "+dispatchError.message);}
  }
  async function previewBagFile(file){
   setBagFile(file);setBagFileName(file?.name||"");setBagPreview([]);setBagMatches([]);setNotice("");
@@ -119,19 +139,12 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    const uniqueValid=[...new Map(valid.map(x=>[x.importKey,x])).values()];
    const duplicateCount=valid.length-uniqueValid.length;
    if(!bagReportFrom||!bagReportTo||bagReportFrom>bagReportTo)throw new Error("Select a valid From Date and To Date before importing.");
-   const min=new Date(bagReportFrom+"T00:00:00");min.setDate(min.getDate()-1);
-   const max=new Date(bagReportTo+"T00:00:00");max.setDate(max.getDate()+1);
-   const from=isoLocalDate(min),to=isoLocalDate(max);
    const payload=uniqueValid.map(x=>({import_key:x.importKey,source_report_date:isoLocalDate(x.start),business_date:x.businessDate,shift_code:x.shiftCode,counter_no:x.counter,packer_code:x.packer,vehicle_number:x.truck,loading_start:x.start.toISOString(),loading_end:x.end.toISOString(),duration_seconds:x.duration,source_file_name:bagFileName,imported_by:session.user.id}));
    if(!payload.length)throw new Error("No unique valid loading sessions remain to import.");
    const {error:saveError}=await supabase.from("pp_bag_counting_sessions").upsert(payload,{onConflict:"import_key"});
    if(saveError)throw saveError;
-   const {data:dispatch,error:dispatchError}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:from,p_date_to:to});
-   if(dispatchError)throw dispatchError;
-   const matched=uniqueValid.map(x=>({...x,dispatchLines:(dispatch||[]).filter(d=>String(d.vehicle_no||"").replace(/\s/g,"").toUpperCase()===x.truck.replace(/\s/g,"")&&d.dispatch_date>=isoLocalDate(new Date(x.start.getFullYear(),x.start.getMonth(),x.start.getDate()-1))&&d.dispatch_date<=isoLocalDate(x.end))}));
-   setBagMatches(matched);
-   setNotice("Imported "+uniqueValid.length+" unique bag-counting sessions. "+(duplicateCount?"Skipped "+duplicateCount+" duplicate rows. ":"")+matched.filter(x=>x.dispatchLines.length).length+" sessions matched with dispatch vehicle lines; "+matched.filter(x=>!x.dispatchLines.length).length+" require review.");
    await loadBagSessions();
+   setNotice("Imported "+uniqueValid.length+" unique bag-counting sessions. "+(duplicateCount?"Skipped "+duplicateCount+" duplicate rows. ":"")+"Dispatch reconciliation refreshed. Sessions without an eligible invoice remain Pending Invoice.");
   }catch(err){setNotice("Bag Counting import failed: "+err.message);}
   finally{setBagBusy(false);}
  }
@@ -251,7 +264,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    <div className="panel"><h3>Truck loading register</h3><div className="table-scroll"><table><thead><tr><th>Vehicle</th><th>Product</th><th>Quantity MT</th><th>Remarks</th><th>Recorded</th></tr></thead><tbody>{rows.map(x=><tr key={x.id}><td>{x.vehicle_number}</td><td>{x.product_code}</td><td className="num">{money(x.quantity_mt)}</td><td>{x.remarks||"—"}</td><td>{new Date(x.created_at).toLocaleString()}</td></tr>)}{!rows.length&&<tr><td colSpan="5" className="muted">No truck entries for this shift.</td></tr>}</tbody></table></div></div></>}
   
   {section==="Bag Counting Upload"&&<><div className="panel"><h3>Cement Bag Counting System · Excel Import</h3><p className="footnote">Select the report date range covered by the Excel file. Rows outside this range are rejected. Counter 1 = Packer 1, Counter 2 = Packer 2, Counters 3 and 4 = Packer 3. Shift is suggested from loading start time.</p><div className="mapping-grid pp-register-grid"><label>From Date<input type="date" value={bagReportFrom} max={today()} onChange={e=>setBagReportFrom(e.target.value)} disabled={!canEdit}/></label><label>To Date<input type="date" value={bagReportTo} min={bagReportFrom} max={today()} onChange={e=>setBagReportTo(e.target.value)} disabled={!canEdit}/></label><label>Excel file (.xlsx / .xls)<input type="file" accept=".xlsx,.xls" onChange={e=>previewBagFile(e.target.files?.[0]||null)} disabled={!canEdit}/></label></div>{bagFileName&&<p className="footnote">Selected file: {bagFileName}</p>}{bagPreview.length>0&&<><div className="stats pp-truck-stats"><div className="stat"><span>Rows</span><b>{bagPreview.length}</b></div><div className="stat"><span>Valid sessions</span><b>{bagPreview.filter(x=>x.valid).length}</b></div><div className="stat"><span>Invalid rows</span><b>{bagPreview.filter(x=>!x.valid).length}</b></div></div><div className="table-scroll"><table><thead><tr><th>Excel Row</th><th>Counter</th><th>Packer</th><th>Vehicle</th><th>Shift</th><th>Business Date</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th></tr></thead><tbody>{bagPreview.map(x=><tr key={x.rowNo}><td>{x.rowNo}</td><td>{x.counter||"—"}</td><td>{x.packer||"—"}</td><td>{x.truck||"—"}</td><td>{x.shiftCode||"—"}</td><td>{x.businessDate||"—"}</td><td>{x.start?x.start.toLocaleString():"—"}</td><td>{x.end?x.end.toLocaleString():"—"}</td><td>{x.duration!=null?new Date(x.duration*1000).toISOString().slice(11,19):"—"}</td><td>{x.valid?"Ready":x.invalid.join(", ")}</td></tr>)}</tbody></table></div><button className="primary" onClick={importBagCounting} disabled={!canEdit||bagBusy||!bagPreview.some(x=>x.valid)}>{bagBusy?"Importing…":"Import & Reconcile with Dispatch"}</button></>}</div>
-   {bagMatches.length>0&&<div className="panel"><h3>Dispatch reconciliation · Imported sessions</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>Vehicle</th><th>Loading Start</th><th>Loading End</th><th>Duration</th><th>Dispatch Match</th><th>Invoice / Product / Qty</th></tr></thead><tbody>{bagMatches.map((x,i)=><tr key={x.importKey}><td>{x.packer}</td><td>{x.counter}</td><td>{x.shiftCode}</td><td>{x.truck}</td><td>{x.start.toLocaleString()}</td><td>{x.end.toLocaleString()}</td><td>{new Date(x.duration*1000).toISOString().slice(11,19)}</td><td>{x.dispatchLines.length?"Matched":"Not found"}</td><td>{x.dispatchLines.length?x.dispatchLines.map(d=>d.invoice_no+" · "+d.product_code+" · "+money(d.qty)+" MT").join("; "):"No dispatch line found for this vehicle/date"}</td></tr>)}</tbody></table></div></div>}
+   {bagMatches.length>0&&<div className="panel"><h3>Dispatch reconciliation · Imported sessions</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>Vehicle</th><th>Loading Start</th><th>Loading End</th><th>Duration</th><th>Dispatch Match</th><th>Invoice / Product / Qty</th></tr></thead><tbody>{bagMatches.map((x,i)=><tr key={x.importKey}><td>{x.packer}</td><td>{x.counter}</td><td>{x.shiftCode}</td><td>{x.truck}</td><td>{x.start.toLocaleString()}</td><td>{x.end.toLocaleString()}</td><td>{new Date(x.duration*1000).toISOString().slice(11,19)}</td><td>{x.dispatchLines.length?"Matched":"Pending Invoice"}</td><td>{x.dispatchLines.length?x.dispatchLines.map(d=>d.invoice_no+" · "+d.product_code+" · "+money(d.qty)+" MT").join("; "):"Awaiting invoice upload · "+x.invoiceWindowHours+"h window through "+x.invoiceCutoffDate}</td></tr>)}</tbody></table></div></div>}
    <div className="panel"><h3>Imported Bag Counting sessions · {bagReportFrom} to {bagReportTo}</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>Vehicle</th><th>Start</th><th>End</th><th>Duration</th></tr></thead><tbody>{bagSessions.map(x=><tr key={x.id}><td>{x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3"}</td><td>{x.counter_no}</td><td>{x.shift_code}</td><td>{x.vehicle_number}</td><td>{new Date(x.loading_start).toLocaleString()}</td><td>{new Date(x.loading_end).toLocaleString()}</td><td>{new Date(x.duration_seconds*1000).toISOString().slice(11,19)}</td></tr>)}{!bagSessions.length&&<tr><td colSpan="7" className="muted">No imported sessions for this Packing Plant business date.</td></tr>}</tbody></table></div></div></>}
   {section==="Attendance"&&<div className="panel"><h3>Shift-wise employee attendance</h3>{holiday&&<div className="alert">Holiday: {holiday.description}. Extra Duty applies only after at least 7 regular attended days earlier in this calendar month.</div>}
    <div className="mapping-grid pp-register-grid">
