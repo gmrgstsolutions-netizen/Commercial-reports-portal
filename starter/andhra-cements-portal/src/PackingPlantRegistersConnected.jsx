@@ -99,9 +99,16 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     const duration=secondsBetween(start,end);
     return {rowNo:headerIndex+i+2,counter,truck,start,end,shiftCode,businessDate:isoLocalDate(business),duration,packer:packerForCounter(counter),importKey:[isoLocalDate(start),counter,truck,isoLocalDateTime(start),isoLocalDateTime(end)].join("|"),valid:true,invalid:[]};
    });
-   setBagPreview(rows);
-   const good=rows.filter(x=>x.valid).length;
-   setNotice("Preview ready: "+rows.length+" rows; "+good+" valid loading sessions; "+(rows.length-good)+" invalid rows will be skipped.");
+   const seenImportKeys=new Set();
+   const checkedRows=rows.map(x=>{
+    if(!x.valid)return x;
+    if(seenImportKeys.has(x.importKey))return {...x,valid:false,invalid:[...(x.invalid||[]),"Duplicate loading session in Excel — skipped"]};
+    seenImportKeys.add(x.importKey);return x;
+   });
+   setBagPreview(checkedRows);
+   const good=checkedRows.filter(x=>x.valid).length;
+   const duplicates=checkedRows.filter(x=>(x.invalid||[]).some(v=>v.startsWith("Duplicate loading session"))).length;
+   setNotice("Preview ready: "+checkedRows.length+" rows; "+good+" valid loading sessions; "+duplicates+" duplicate rows; "+(checkedRows.length-good)+" rows will be skipped.");
   }catch(err){setNotice("Bag Counting Excel could not be read: "+err.message);}
  }
  async function importBagCounting(){
@@ -109,19 +116,21 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   setBagBusy(true);setNotice("");
   try{
    const valid=bagPreview.filter(x=>x.valid);
-   const dates=valid.map(x=>x.start);
+   const uniqueValid=[...new Map(valid.map(x=>[x.importKey,x])).values()];
+   const duplicateCount=valid.length-uniqueValid.length;
    if(!bagReportFrom||!bagReportTo||bagReportFrom>bagReportTo)throw new Error("Select a valid From Date and To Date before importing.");
    const min=new Date(bagReportFrom+"T00:00:00");min.setDate(min.getDate()-1);
    const max=new Date(bagReportTo+"T00:00:00");max.setDate(max.getDate()+1);
    const from=isoLocalDate(min),to=isoLocalDate(max);
-   const payload=valid.map(x=>({import_key:x.importKey,source_report_date:isoLocalDate(x.start),business_date:x.businessDate,shift_code:x.shiftCode,counter_no:x.counter,packer_code:x.packer,vehicle_number:x.truck,loading_start:x.start.toISOString(),loading_end:x.end.toISOString(),duration_seconds:x.duration,source_file_name:bagFileName,imported_by:session.user.id}));
+   const payload=uniqueValid.map(x=>({import_key:x.importKey,source_report_date:isoLocalDate(x.start),business_date:x.businessDate,shift_code:x.shiftCode,counter_no:x.counter,packer_code:x.packer,vehicle_number:x.truck,loading_start:x.start.toISOString(),loading_end:x.end.toISOString(),duration_seconds:x.duration,source_file_name:bagFileName,imported_by:session.user.id}));
+   if(!payload.length)throw new Error("No unique valid loading sessions remain to import.");
    const {error:saveError}=await supabase.from("pp_bag_counting_sessions").upsert(payload,{onConflict:"import_key"});
    if(saveError)throw saveError;
    const {data:dispatch,error:dispatchError}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:from,p_date_to:to});
    if(dispatchError)throw dispatchError;
-   const matched=valid.map(x=>({...x,dispatchLines:(dispatch||[]).filter(d=>String(d.vehicle_no||"").replace(/\s/g,"").toUpperCase()===x.truck.replace(/\s/g,"")&&d.dispatch_date>=isoLocalDate(new Date(x.start.getFullYear(),x.start.getMonth(),x.start.getDate()-1))&&d.dispatch_date<=isoLocalDate(x.end))}));
+   const matched=uniqueValid.map(x=>({...x,dispatchLines:(dispatch||[]).filter(d=>String(d.vehicle_no||"").replace(/\s/g,"").toUpperCase()===x.truck.replace(/\s/g,"")&&d.dispatch_date>=isoLocalDate(new Date(x.start.getFullYear(),x.start.getMonth(),x.start.getDate()-1))&&d.dispatch_date<=isoLocalDate(x.end))}));
    setBagMatches(matched);
-   setNotice("Imported "+valid.length+" bag-counting sessions. "+matched.filter(x=>x.dispatchLines.length).length+" sessions matched with dispatch vehicle lines; "+matched.filter(x=>!x.dispatchLines.length).length+" require review.");
+   setNotice("Imported "+uniqueValid.length+" unique bag-counting sessions. "+(duplicateCount?"Skipped "+duplicateCount+" duplicate rows. ":"")+matched.filter(x=>x.dispatchLines.length).length+" sessions matched with dispatch vehicle lines; "+matched.filter(x=>!x.dispatchLines.length).length+" require review.");
    await loadBagSessions();
   }catch(err){setNotice("Bag Counting import failed: "+err.message);}
   finally{setBagBusy(false);}
