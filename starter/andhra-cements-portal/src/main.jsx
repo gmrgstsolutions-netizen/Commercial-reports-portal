@@ -7,6 +7,7 @@ import "./style.css";
 import PackingPlantConnected from "./PackingPlantConnected.jsx";
 import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";
 import PackingPlantReportsConnected from "./PackingPlantReportsConnected.jsx";
+import CementDispatchUpload from "./CementDispatchUpload.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -205,6 +206,7 @@ function App() {
 
   const isAdmin = profile?.role === "admin";
   const canUpload = isAdmin || ["uploader"].includes(profile?.role);
+  const canUploadDispatch = isAdmin || ["dispatch_uploader","uploader"].includes(profile?.role);
   const stockRows = stockStatement?.rows ?? [];
   const totals = stockStatement?.totals ?? {};
 
@@ -257,6 +259,7 @@ function App() {
     <aside className="sidebar"><div className="side-brand"><div className="brand-mark small">AC</div><div><b>ANDHRA CEMENTS</b><small>Commercial Reports</small></div></div>
       <div className="nav-label">SELECTED REPORT TYPE</div>
       <div className="selected-report-type">{reportType}</div>
+      {reportType === "Dispatch Reports" && canUploadDispatch && <button className={tab==="Dispatch Upload"?"nav active":"nav"} onClick={()=>setTab("Dispatch Upload")}><UploadCloud size={17}/>Upload Dispatch Data</button>}
       {reportType === "Packing Plant Reports" && <>
         <div className="nav-label">PACKING PLANT</div>
         <button className={tab==="Packing Plant Operations"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Operations")}><LayoutDashboard size={17}/>Production &amp; Running Hours</button>
@@ -278,7 +281,7 @@ function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{shiftInchargeName} · {profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
-      {reportType === "Dispatch Reports" ? <section>
+      {reportType === "Dispatch Reports" ? (tab === "Dispatch Upload" ? <section><div className="section-head"><div><span className="eyebrow">DISPATCH DATA IMPORT</span><h1>Upload Dispatch Reports</h1><p className="muted">Import validated invoice rows into the connected reports database.</p></div></div><CementDispatchUpload supabase={supabase} onUploaded={loadDispatch}/></section> : <section>
         <div className="section-head"><div><span className="eyebrow">DISPATCH REPORTS · READ-ONLY PREVIEW</span><h1>{dispatchReports.find(x=>x.key===dispatchReportKey)?.label}</h1><p className="muted">Connected to the existing authenticated Supabase report function. Existing production data is read only.</p></div>
           <div className="date-tools">{dispatchReportKey==="invoice_wise" ? <><label>From date<input type="date" value={dispatchFromDate} onChange={e=>setDispatchFromDate(e.target.value)}/></label><label>To date<input type="date" value={dispatchToDate} onChange={e=>setDispatchToDate(e.target.value)}/></label></> : <label>{dispatchReportKey==="monthly_yearly"?"Financial year reference date":"Report date"}<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label>}<button className="secondary" onClick={loadDispatch}><RefreshCw size={16}/>Refresh</button></div></div>
         <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{dispatchReportKey==="invoice_wise"?dispatchFromDate+" to "+dispatchToDate:dispatchReportKey==="monthly_yearly"?"FY "+(new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear():new Date(reportDate+"T00:00:00").getFullYear()-1)+"-"+String((new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear()+1:new Date(reportDate+"T00:00:00").getFullYear()) ).slice(-2):reportDate}</span></div>
@@ -290,7 +293,7 @@ function App() {
         {!dispatchBusy && dispatchData && (dispatchReportKey==="product_wise" ? <ProductWiseDispatchView data={dispatchData}/> : <ReportDataView data={dispatchData}/>) }
         {!dispatchBusy && !dispatchError && dispatchData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
         <div className="alert warning">These connected reports are read-only. Invoice-wise results are limited to 1,000 rows; use the date range to narrow the result. Trade / Non-Trade is month-scoped. Financial-year summary requires the account to have All dates permission. Product-wise and other final report layouts will be mapped after their exact data sources are verified.</div>
-      </section> : reportType === "Weighbridge Reports" ? <section>
+      </section>) : reportType === "Weighbridge Reports" ? <section>
         <div className="section-head"><div><span className="eyebrow">WEIGHBRIDGE REPORTS · READ-ONLY PREVIEW</span><h1>{weighReports.find(x=>x.key===weighReportKey)?.label}</h1><p className="muted">Connected to existing authenticated Supabase report functions. Production data is read only.</p></div>
           {weighReportKey==="raw_materials" || weighReportKey==="transaction_wise" ? <div className="date-tools"><label>From date<input type="date" value={weighReportKey==="raw_materials"?rawFromDate:weighFromDate} onChange={e=>weighReportKey==="raw_materials"?setRawFromDate(e.target.value):setWeighFromDate(e.target.value)}/></label><label>To date<input type="date" value={weighReportKey==="raw_materials"?rawToDate:weighToDate} onChange={e=>weighReportKey==="raw_materials"?setRawToDate(e.target.value):setWeighToDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div> : <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadWeighbridge}><RefreshCw size={16}/>Refresh</button></div>}</div>
         <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{weighReportKey==="raw_materials" ? rawFromDate+" to "+rawToDate : weighReportKey==="transaction_wise" ? weighFromDate+" to "+weighToDate : reportDate}</span></div><div className="mapping-grid"><label>Report<select value={weighReportKey} onChange={e=>setWeighReportKey(e.target.value)}>{weighReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div></div>
