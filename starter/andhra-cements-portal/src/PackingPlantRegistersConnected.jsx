@@ -106,7 +106,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     if(error)throw error;
     const allSessions=data||[];
     const sessions=allSessions.filter(x=>(packerShift==="ALL"||x.shift_code===packerShift)&&(packerFilter==="ALL"||x.packer_code===packerFilter));
-    const latestCutoff=allSessions.reduce((max,x)=>{const end=invoiceCutoffDate(new Date(x.loading_start),new Date(x.loading_end)).date;return end>max?end:max;},packerTo);\n    const dispatch=await fetchDispatchDateRange(packerFrom,latestCutoff);
+    const latestCutoff=allSessions.reduce((max,x)=>{const end=invoiceCutoffDate(new Date(x.loading_start),new Date(x.loading_end)).date;return end>max?end:max;},packerTo);
+    const dispatch=await fetchDispatchDateRange(packerFrom,latestCutoff);
     const normVehicle=v=>String(v||"").replace(/\s/g,"").toUpperCase();
     const sessionWindow=x=>{const start=new Date(x.loading_start),end=new Date(x.loading_end);return {vehicle:normVehicle(x.vehicle_number),from:isoLocalDate(start),to:invoiceCutoffDate(start,end).date};};
     const windows=allSessions.map(x=>({...sessionWindow(x),session:x}));
