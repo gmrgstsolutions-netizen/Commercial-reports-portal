@@ -64,7 +64,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
   useEffect(() => { loadReport(); }, [reportKey]);
 
   const totals = useMemo(() => {
-    const totalKeys = columns.filter(k => NUMERIC.has(k) && k !== "active_packers" && k !== "weighment_records" && k !== "invoice_lines" && k !== "transactions" && k !== "unclassified_shift_records");
+    const totalKeys = columns.filter(k => NUMERIC.has(k));
     return Object.fromEntries(totalKeys.map(k => [k, rows.reduce((sum, row) => sum + (Number(row[k]) || 0), 0)]));
   }, [columns, rows]);
 
@@ -88,7 +88,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       <div className="panel-title"><h3>{selected.label}</h3><span className="pill">{rows.length.toLocaleString("en-IN")} rows · MT where applicable</span></div>
       {rows.length ? <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
         {rows.map((row, i) => <tr key={i}>{columns.map(k => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{display(row[k], k)}</td>)}</tr>)}
-        {Object.keys(totals).length > 0 && <tr className="total"><td colSpan={Math.max(1, columns.length - Object.keys(totals).length)}>Total</td>{columns.filter(k => Object.prototype.hasOwnProperty.call(totals,k)).map(k => <td key={k} className="num">{display(totals[k],k)}</td>)}</tr>}
+        {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
       </tbody></table></div> : <p className="muted">No records found for the selected dates. Production reports will populate after Packing Plant shift entries are saved.</p>}
     </div>}
     <div className="alert warning">Important: vehicle/date reconciliation is an indicative comparison, not proof that a particular weighment belongs to a particular invoice. Review differences before taking action. Raw-material quantities represent completed weighbridge inward movements, not consumption.</div>
