@@ -24,8 +24,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    ]);
    for(const x of [t,e,h,r])if(x.error)throw x.error;
    setRows(t.data||[]);setEmployees(e.data||[]);setHoliday(h.data||null);setReasons(r.data||[]);
-   const {data:a,error:ae}=await supabase.from("pp_attendance").select("employee_id,attendance_status,duty_classification").eq("business_date",date).eq("shift_code",shift);
-   if(ae)throw ae;const map={};for(const x of a||[])map[x.employee_id]=x.attendance_status==="present";setAttendance(map);
+   const {data:a,error:ae}=await supabase.from("pp_attendance").select("id,employee_id,attendance_status,duty_classification").eq("business_date",date).eq("shift_code",shift);
+   if(ae)throw ae;setAttendanceRows(a||[]);const map={};for(const x of a||[])map[x.employee_id]=x.attendance_status==="present";setAttendance(map);
   }catch(err){setNotice("Unable to load register: "+err.message);}
   finally{setLoading(false);}
  }
@@ -108,6 +108,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   if(result.error){setNotice("Reason not saved: "+result.error.message);return;}setEditReason(null);setReason("");setNotice("Stoppage reason saved.");load();
  }
  async function toggleReason(r){const {error}=await supabase.from("pp_stoppage_reasons").update({is_active:!r.is_active}).eq("id",r.id);setNotice(error?"Update failed: "+error.message:"Reason status updated.");load();}
+ const attendanceMatches=employees.filter(e=>{const q=employeeSearch.trim().toLowerCase();return q&&!attendance[e.id]&&((e.employee_code||"").toLowerCase().includes(q)||(e.full_name||"").toLowerCase().includes(q));}).slice(0,12);
  const total=rows.reduce((s,x)=>s+Number(x.quantity_mt),0),ppc=rows.filter(x=>x.product_code==="PPC").reduce((s,x)=>s+Number(x.quantity_mt),0),opc=total-ppc;
  return <section className="pp-registers">
   <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Shift Registers &amp; Masters</h1><p className="muted">Truck loading, attendance, employee and stoppage reason registers</p></div><span className="pill">{admin?"Administrator":canEdit?"Uploader":"Read-only"}</span></div>
@@ -123,10 +124,10 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    </div>
    {attendanceRows.length>0&&!admin&&<div className="alert">Submitted attendance is locked. Only an administrator can modify this shift's attendance.</div>}
    <div className="mapping-grid pp-register-grid">
-    <label>Search employee name<input list="pp-attendance-employee-options" value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Type employee name to search…" disabled={!canEdit||(!admin&&attendanceRows.length>0)}/><datalist id="pp-attendance-employee-options">{employees.filter(e=>!attendance[e.id]).map(e=><option key={e.id} value={e.full_name}>{e.staff_category}</option>)}</datalist></label>
-    <div style={{display:"flex",alignItems:"end"}}><button className="secondary" disabled={!canEdit||(!admin&&attendanceRows.length>0)||!employees.some(e=>e.full_name.toLowerCase()===employeeSearch.trim().toLowerCase()&&!attendance[e.id])} onClick={()=>{const emp=employees.find(e=>e.full_name.toLowerCase()===employeeSearch.trim().toLowerCase()&&!attendance[e.id]);if(emp){setAttendance(v=>({...v,[emp.id]:true}));setEmployeeSearch("");}}}>Add employee</button></div>
+    <label>Search by employee code or name<input value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Type employee code or employee name…" disabled={!canEdit||(!admin&&attendanceRows.length>0)}/></label>
    </div>
-   <div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Employee name</th><th>Job</th><th>Action</th></tr></thead><tbody>{employees.filter(e=>attendance[e.id]).map((e,i)=><tr key={e.id}><td>{i+1}</td><td>{e.full_name}</td><td>{e.staff_category}</td><td><button className="text-btn" disabled={!admin&&attendanceRows.length>0} onClick={()=>setAttendance(v=>({...v,[e.id]:false}))}>Remove</button></td></tr>)}{!employees.some(e=>attendance[e.id])&&<tr><td colSpan="4" className="muted">Search and add employees for this shift.</td></tr>}</tbody></table></div>
+   {attendanceMatches.length>0&&<div className="panel" style={{padding:"10px",marginTop:"8px"}}><strong>Matching employees — select one to add</strong><div className="table-scroll"><table><thead><tr><th>Employee code</th><th>Employee name</th><th>Job</th><th>Action</th></tr></thead><tbody>{attendanceMatches.map(e=><tr key={e.id}><td>{e.employee_code||"—"}</td><td>{e.full_name}</td><td>{e.staff_category}</td><td><button className="secondary" disabled={!canEdit||(!admin&&attendanceRows.length>0)} onClick={()=>{setAttendance(v=>({...v,[e.id]:true}));setEmployeeSearch("");}}>Add</button></td></tr>)}</tbody></table></div></div>}
+   <div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Employee code</th><th>Employee name</th><th>Job</th><th>Action</th></tr></thead><tbody>{employees.filter(e=>attendance[e.id]).map((e,i)=><tr key={e.id}><td>{i+1}</td><td>{e.employee_code||"—"}</td><td>{e.full_name}</td><td>{e.staff_category}</td><td><button className="text-btn" disabled={!admin&&attendanceRows.length>0} onClick={()=>setAttendance(v=>({...v,[e.id]:false}))}>Remove</button></td></tr>)}{!employees.some(e=>attendance[e.id])&&<tr><td colSpan="5" className="muted">Search by employee code or name and select an employee.</td></tr>}</tbody></table></div>
    <button className="primary" onClick={saveAttendance} disabled={!canEdit||saving||(!admin&&attendanceRows.length>0)||!employees.some(e=>attendance[e.id])}>{saving?"Saving…":attendanceRows.length>0&&admin?"Update attendance":"Save / Submit attendance"}</button>
    <p className="footnote">Only employees added to this shift are recorded as Present. Uploaders can submit attendance once for each date and shift. Administrators can add, remove or update submitted entries.</p>
   </div>}
