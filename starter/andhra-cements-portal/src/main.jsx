@@ -18,7 +18,8 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [reportType, setReportType] = useState("Packing Plant Reports");
+  const [reportType, setReportType] = useState("");
+  const [shiftInchargeName, setShiftInchargeName] = useState("");
   const [tab, setTab] = useState("Reports");
   const [bagTypes, setBagTypes] = useState([]);
   const [stockStatement, setStockStatement] = useState(null);
@@ -60,6 +61,10 @@ function App() {
     {key:"monthly_yearly",label:"Month-wise Financial Year Summary",rpc:"get_month_wise_yearly_report"}
   ];
 
+
+  useEffect(() => {
+    setTab(reportType === "Packing Plant Reports" ? "Packing Plant Operations" : "Reports");
+  }, [reportType]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -169,6 +174,7 @@ function App() {
 
   async function signIn(e) {
     e.preventDefault(); setError("");
+    if (!reportType || !shiftInchargeName.trim()) return setError("Select a Report Type and enter the Shift Incharge Name.");
     if (!supabase) return setError("Portal configuration is missing. Add the Supabase URL and public anon/publishable key in .env.");
     const {error} = await supabase.auth.signInWithPassword({email,password});
     if (error) setError(error.message);
@@ -219,26 +225,28 @@ function App() {
     <div className="brand-mark">AC</div><p className="eyebrow">ANDHRA CEMENTS</p><h1>Commercial Reports</h1><p className="muted">Secure reporting portal</p>
     <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username"/></label>
     <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/></label>
+    <label>Report Type<select className="report-select login-select" value={reportType} onChange={e=>setReportType(e.target.value)} required><option value="">Select Report Type</option><option>Dispatch Reports</option><option>Weighbridge Reports</option><option>Packing Plant Reports</option></select></label>
+    <label>Shift Incharge Name<input type="text" value={shiftInchargeName} onChange={e=>setShiftInchargeName(e.target.value)} required maxLength={100} placeholder="Enter Shift Incharge Name"/></label>
     {error && <div className="alert error">{error}</div>}<button className="primary full">Sign in</button>
     <small>Use your existing portal account. Password reset is managed by the administrator.</small>
   </form></div>;
 
   return <div className="app-shell">
     <aside className="sidebar"><div className="side-brand"><div className="brand-mark small">AC</div><div><b>ANDHRA CEMENTS</b><small>Commercial Reports</small></div></div>
-      <div className="nav-label">REPORT TYPE</div>
-      <select className="report-select" value={reportType} onChange={e=>setReportType(e.target.value)}>
-        <option>Dispatch Reports</option><option>Weighbridge Reports</option><option>Packing Plant Reports</option>
-      </select>
-      <div className="nav-label">PACKING PLANT</div>
-      <button className={tab==="Packing Plant Operations"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Operations")}><LayoutDashboard size={17}/>Production &amp; Running Hours</button>
-      <button className={tab==="Packing Plant Registers"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Registers")}><LayoutDashboard size={17}/>Shift Registers &amp; Masters</button>
-      <button className={tab==="Integrated Reports"?"nav active":"nav"} onClick={()=>setTab("Integrated Reports")}><LayoutDashboard size={17}/>Integrated Reports</button>
-      <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
-      {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
-      <button className={tab==="Packing Bags Receipts"?"nav active":"nav"} onClick={()=>setTab("Packing Bags Receipts")}><History size={17}/>Packing Bags Receipts</button>
-      {canUpload && <button className={tab==="Upload Data"?"nav active":"nav"} onClick={()=>setTab("Upload Data")}><UploadCloud size={17}/>Upload Data</button>}
-      <button className={tab==="Upload History"?"nav active":"nav"} onClick={()=>setTab("Upload History")}><History size={17}/>Upload History</button>
-      {isAdmin && <>
+      <div className="nav-label">SELECTED REPORT TYPE</div>
+      <div className="selected-report-type">{reportType}</div>
+      {reportType === "Packing Plant Reports" && <>
+        <div className="nav-label">PACKING PLANT</div>
+        <button className={tab==="Packing Plant Operations"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Operations")}><LayoutDashboard size={17}/>Production &amp; Running Hours</button>
+        <button className={tab==="Packing Plant Registers"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Registers")}><LayoutDashboard size={17}/>Shift Registers &amp; Masters</button>
+        <button className={tab==="Integrated Reports"?"nav active":"nav"} onClick={()=>setTab("Integrated Reports")}><LayoutDashboard size={17}/>Integrated Reports</button>
+        <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
+        {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
+        <button className={tab==="Packing Bags Receipts"?"nav active":"nav"} onClick={()=>setTab("Packing Bags Receipts")}><History size={17}/>Packing Bags Receipts</button>
+        {canUpload && <button className={tab==="Upload Data"?"nav active":"nav"} onClick={()=>setTab("Upload Data")}><UploadCloud size={17}/>Upload Data</button>}
+        <button className={tab==="Upload History"?"nav active":"nav"} onClick={()=>setTab("Upload History")}><History size={17}/>Upload History</button>
+      </>}
+      {isAdmin && reportType === "Packing Plant Reports" && <>
         <div className="nav-label">ADMIN MAINTENANCE</div>
         <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/tree/source-import/starter-portal-2026-11-21/starter/andhra-cements-portal" target="_blank" rel="noreferrer"><Code2 size={17}/>Edit Portal Source</a>
         <a className="nav" href="https://github.com/gmrgstsolutions-netizen/Commercial-reports-portal/pull/2" target="_blank" rel="noreferrer"><GitPullRequest size={17}/>Review Changes</a>
@@ -247,7 +255,7 @@ function App() {
       <div className="sidebar-bottom"><ShieldCheck size={16}/><span>{profile?.role || "user"} access</span></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
+      <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{shiftInchargeName} · {profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
       {reportType === "Dispatch Reports" ? <section>
         <div className="section-head"><div><span className="eyebrow">DISPATCH REPORTS · READ-ONLY PREVIEW</span><h1>{dispatchReports.find(x=>x.key===dispatchReportKey)?.label}</h1><p className="muted">Connected to the existing authenticated Supabase report function. Existing production data is read only.</p></div>
           <div className="date-tools">{dispatchReportKey==="invoice_wise" ? <><label>From date<input type="date" value={dispatchFromDate} onChange={e=>setDispatchFromDate(e.target.value)}/></label><label>To date<input type="date" value={dispatchToDate} onChange={e=>setDispatchToDate(e.target.value)}/></label></> : <label>{dispatchReportKey==="monthly_yearly"?"Financial year reference date":"Report date"}<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label>}<button className="secondary" onClick={loadDispatch}><RefreshCw size={16}/>Refresh</button></div></div>
@@ -271,7 +279,7 @@ function App() {
         <div className="alert warning">Card Issue Details is not connected yet: the verified database inventory contains no dedicated Card Issue table or RPC. It will not be substituted with Outside Main Gate. Transaction-wise report requires both dates and a maximum 93-day range. Upload workflows and export controls remain pending verification.</div>
       </section> :
       <>
-        {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile}/>}
+        {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile} shiftInchargeName={shiftInchargeName}/>}
         {tab==="Integrated Reports" && <PackingPlantReportsConnected supabase={supabase}/>}
         {tab==="Packing Plant Registers" && <PackingPlantRegistersConnected supabase={supabase} session={session} profile={profile}/>}
         {error && <div className="alert error">{error}</div>}
