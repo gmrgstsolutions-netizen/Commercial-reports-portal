@@ -11,14 +11,14 @@ const fromRelative = (n,code) => clock(shiftStart(code)+Number(n));
 const fmtH = n => (n/60).toFixed(2);
 const uid = () => globalThis.crypto?.randomUUID?.() || "pp-"+Date.now()+"-"+Math.random().toString(36).slice(2);
 
-export default function PackingPlantConnected({supabase,session,profile}) {
+export default function PackingPlantConnected({supabase,session,profile,shiftInchargeName=""}) {
   const [date,setDate]=useState(today());
   const [shift,setShift]=useState("A");
   const [shiftId,setShiftId]=useState(null);
   const [production,setProduction]=useState({});
   const [intervals,setIntervals]=useState([]);
   const [originalIntervalIds,setOriginalIntervalIds]=useState([]);
-  const [staff,setStaff]=useState({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:""});
+  const [staff,setStaff]=useState({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:shiftInchargeName});
   const [reasons,setReasons]=useState([]);
   const [gapChoices,setGapChoices]=useState({});
   const [loading,setLoading]=useState(false);
@@ -49,7 +49,7 @@ export default function PackingPlantConnected({supabase,session,profile}) {
       const {data:sh,error:se}=await supabase.from("pp_shifts").select("id,status").eq("business_date",date).eq("shift_code",shift).maybeSingle();
       if(se)throw se;
       setShiftId(sh?.id||null);
-      if(!sh){setProduction({});setIntervals([]);setOriginalIntervalIds([]);setStaff({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:""});setGapChoices({});}
+      if(!sh){setProduction({});setIntervals([]);setOriginalIntervalIds([]);setStaff({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:shiftInchargeName});setGapChoices({});}
       else {
         const [pr,iv,st,sp]=await Promise.all([
           supabase.from("pp_production").select("*").eq("shift_id",sh.id),
@@ -60,7 +60,7 @@ export default function PackingPlantConnected({supabase,session,profile}) {
         for(const x of [pr,iv,st,sp])if(x.error)throw x.error;
         const p={}; for(const row of pr.data||[]){p[row.packer_code]??={PPC:"",OPC:""};p[row.packer_code][row.product_code]=String(row.quantity_mt);}
         setProduction(p);setIntervals(iv.data||[]);setOriginalIntervalIds((iv.data||[]).map(x=>x.id));
-        setStaff({packing_plc_operator:st.data?.packing_plc_operator||"",truck_loading_operator:st.data?.truck_loading_operator||"",shift_incharge:st.data?.shift_incharge||""});
+        setStaff({packing_plc_operator:st.data?.packing_plc_operator||"",truck_loading_operator:st.data?.truck_loading_operator||"",shift_incharge:st.data?.shift_incharge||shiftInchargeName});
         const choices={};for(const row of sp.data||[]){choices[row.packer_code+"-"+row.start_minute+"-"+row.end_minute]={category:row.category,reason:row.reason_snapshot,reason_id:row.reason_id};}setGapChoices(choices);
       }
       const {data:rs,error:re}=await supabase.from("pp_stoppage_reasons").select("id,category,reason").eq("is_active",true).order("category").order("reason");
