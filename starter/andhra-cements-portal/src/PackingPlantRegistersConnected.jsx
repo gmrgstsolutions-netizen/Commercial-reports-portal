@@ -40,8 +40,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    const monthStart=date.slice(0,7)+"-01";
    const {data:prior,error:pe}=await supabase.from("pp_attendance").select("employee_id,business_date").in("employee_id",employees.map(x=>x.id)).eq("attendance_status","present").eq("duty_classification","actual_duty").gte("business_date",monthStart).lt("business_date",date);
    if(pe)throw pe;
-   const counts={};for(const x of prior||[])counts[x.employee_id]=(counts[x.employee_id]||0)+1;
-   const records=employees.map(emp=>{const present=!!attendance[emp.id];const extra=!!holiday&&present&&(counts[emp.id]||0)>=7;return {business_date:date,shift_code:shift,employee_id:emp.id,attendance_status:present?"present":"absent",duty_classification:extra?"extra_duty":"actual_duty",created_by:session.user.id};});
+   const counts={};for(const x of prior||[]){counts[x.employee_id]??=new Set();counts[x.employee_id].add(x.business_date);}
+   const records=employees.map(emp=>{const present=!!attendance[emp.id];const extra=!!holiday&&present&&(counts[emp.id]?.size||0)>=7;return {business_date:date,shift_code:shift,employee_id:emp.id,attendance_status:present?"present":"absent",duty_classification:extra?"extra_duty":"actual_duty",created_by:session.user.id};});
    if(records.length){const {error}=await supabase.from("pp_attendance").upsert(records,{onConflict:"business_date,shift_code,employee_id"});if(error)throw error;}
    setNotice("Attendance saved. Holiday extra-duty eligibility was calculated from prior regular attendance in this calendar month.");
   }catch(err){setNotice("Attendance not saved: "+err.message);}finally{setSaving(false);}
