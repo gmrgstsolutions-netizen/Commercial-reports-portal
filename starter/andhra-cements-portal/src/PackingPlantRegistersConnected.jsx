@@ -54,6 +54,17 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   const {data,error}=await supabase.from("pp_bag_counting_sessions").select("*").eq("business_date",date).order("loading_start");
   if(error){setNotice("Unable to load bag-counting sessions: "+error.message);return;}
   setBagSessions(data||[]);
+  if(!(data||[]).length){setBagMatches([]);return;}
+  const fromDate=new Date(date+"T00:00:00");fromDate.setDate(fromDate.getDate()-1);
+  const toDate=new Date(date+"T00:00:00");toDate.setDate(toDate.getDate()+1);
+  const {data:dispatch,error:dispatchError}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:isoLocalDate(fromDate),p_date_to:isoLocalDate(toDate)});
+  if(dispatchError){setNotice("Sessions loaded, but dispatch matching failed: "+dispatchError.message);return;}
+  setBagMatches((data||[]).map(x=>{
+   const start=new Date(x.loading_start),end=new Date(x.loading_end);
+   const startDate=isoLocalDate(start),endDate=isoLocalDate(end);
+   const match=(dispatch||[]).filter(d=>String(d.vehicle_no||"").replace(/\\s/g,"").toUpperCase()===x.vehicle_number.replace(/\\s/g,"").toUpperCase()&&d.dispatch_date>=startDate&&d.dispatch_date<=endDate);
+   return {...x,packer:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3",counter:x.counter_no,truck:x.vehicle_number,shiftCode:x.shift_code,start,end,duration:x.duration_seconds,dispatchLines:match,importKey:x.import_key};
+  }));
  }
  async function previewBagFile(file){
   setBagFile(file);setBagFileName(file?.name||"");setBagPreview([]);setBagMatches([]);setNotice("");
@@ -99,7 +110,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    const max=new Date(Math.max(...dates.map(d=>d.getTime())));
    const from=isoLocalDate(min),to=isoLocalDate(max);
    if((max-min)/86400000>3)throw new Error("Please upload one daily Bag Counting report at a time (maximum four calendar dates including C-shift carry-over).");
-   const payload=valid.map(x=>({import_key:x.importKey,source_report_date:bagReportDate,business_date:x.businessDate,shift_code:x.shiftCode,counter_no:x.counter,packer_code:x.packer,vehicle_number:x.truck,loading_start:isoLocalDateTime(x.start),loading_end:isoLocalDateTime(x.end),duration_seconds:x.duration,source_file_name:bagFileName,imported_by:session.user.id}));
+   const payload=valid.map(x=>({import_key:x.importKey,source_report_date:bagReportDate,business_date:x.businessDate,shift_code:x.shiftCode,counter_no:x.counter,packer_code:x.packer,vehicle_number:x.truck,loading_start:x.start.toISOString(),loading_end:x.end.toISOString(),duration_seconds:x.duration,source_file_name:bagFileName,imported_by:session.user.id}));
    const {error:saveError}=await supabase.from("pp_bag_counting_sessions").upsert(payload,{onConflict:"import_key"});
    if(saveError)throw saveError;
    const {data:dispatch,error:dispatchError}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:from,p_date_to:to});
