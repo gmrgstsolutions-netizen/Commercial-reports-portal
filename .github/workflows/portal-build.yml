@@ -25,11 +25,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: starter/andhra-cements-portal/package-lock.json
       - name: Install dependencies
         working-directory: starter/andhra-cements-portal
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
       - name: Build portal
         working-directory: starter/andhra-cements-portal
         run: npm run build
