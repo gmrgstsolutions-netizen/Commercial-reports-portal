@@ -1,4 +1,5 @@
 name: Deploy Packing Plant Preview to GitHub Pages
+# Re-trigger after GitHub Pages source was configured to GitHub Actions.
 
 on:
   push:
