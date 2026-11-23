@@ -8,6 +8,7 @@ import PackingPlantConnected from "./PackingPlantConnected.jsx";
 import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";
 import PackingPlantReportsConnected from "./PackingPlantReportsConnected.jsx";
 import CementDispatchUpload from "./CementDispatchUpload.jsx";
+import ClinkerDispatchUpload from "./ClinkerDispatchUpload.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -281,7 +282,8 @@ function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">COMMERCIAL OPERATIONS</span><h2>{reportType}</h2></div><div className="user-area"><span>{shiftInchargeName} · {profile?.full_name || profile?.email}</span><button className="icon-btn" title="Sign out" onClick={signOut}><LogOut size={17}/></button></div></header>
-      {reportType === "Dispatch Reports" ? (tab === "Dispatch Upload" ? <section><div className="section-head"><div><span className="eyebrow">DISPATCH DATA IMPORT</span><h1>Upload Dispatch Reports</h1><p className="muted">Import validated invoice rows into the connected reports database.</p></div></div><CementDispatchUpload supabase={supabase} onUploaded={loadDispatch}/></section> : <section>
+      {reportType === "Dispatch Reports" ? (tab === "Dispatch Upload" ? <section><div className="section-head"><div><span className="eyebrow">DISPATCH DATA IMPORT</span><h1>Upload Dispatch Reports</h1><p className="muted">Import validated invoice rows into the connected reports database.</p></div></div><CementDispatchUpload supabase={supabase} onUploaded={loadDispatch}/>
+          <ClinkerDispatchUpload supabase={supabase} onUploaded={loadDispatch}/></section> : <section>
         <div className="section-head"><div><span className="eyebrow">DISPATCH REPORTS · READ-ONLY PREVIEW</span><h1>{dispatchReports.find(x=>x.key===dispatchReportKey)?.label}</h1><p className="muted">Connected to the existing authenticated Supabase report function. Existing production data is read only.</p></div>
           <div className="date-tools">{dispatchReportKey==="invoice_wise" ? <><label>From date<input type="date" value={dispatchFromDate} onChange={e=>setDispatchFromDate(e.target.value)}/></label><label>To date<input type="date" value={dispatchToDate} onChange={e=>setDispatchToDate(e.target.value)}/></label></> : <label>{dispatchReportKey==="monthly_yearly"?"Financial year reference date":"Report date"}<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label>}<button className="secondary" onClick={loadDispatch}><RefreshCw size={16}/>Refresh</button></div></div>
         <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{dispatchReportKey==="invoice_wise"?dispatchFromDate+" to "+dispatchToDate:dispatchReportKey==="monthly_yearly"?"FY "+(new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear():new Date(reportDate+"T00:00:00").getFullYear()-1)+"-"+String((new Date(reportDate+"T00:00:00").getMonth()>=3?new Date(reportDate+"T00:00:00").getFullYear()+1:new Date(reportDate+"T00:00:00").getFullYear()) ).slice(-2):reportDate}</span></div>
