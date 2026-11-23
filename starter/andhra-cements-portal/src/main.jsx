@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow } from "lucide-react";
 import "./style.css";
-import PackingPlantPrototype from "./PackingPlantPrototype.jsx";
+import PackingPlantConnected from "./PackingPlantConnected.jsx";
 import PackingPlantRegisters from "./PackingPlantRegisters.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -269,7 +269,7 @@ function App() {
         <div className="alert warning">Card Issue Details is not connected yet: the verified database inventory contains no dedicated Card Issue table or RPC. It will not be substituted with Outside Main Gate. Transaction-wise report requires both dates and a maximum 93-day range. Upload workflows and export controls remain pending verification.</div>
       </section> :
       <>
-        {tab==="Packing Plant Operations" && <PackingPlantPrototype/>}
+        {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile}/>}
         {tab==="Packing Plant Registers" && <PackingPlantRegisters/>}
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
