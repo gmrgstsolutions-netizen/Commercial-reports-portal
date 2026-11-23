@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow } from "lucide-react";
 import "./style.css";
 import PackingPlantConnected from "./PackingPlantConnected.jsx";
-import PackingPlantRegisters from "./PackingPlantRegisters.jsx";
+import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -270,7 +270,7 @@ function App() {
       </section> :
       <>
         {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile}/>}
-        {tab==="Packing Plant Registers" && <PackingPlantRegisters/>}
+        {tab==="Packing Plant Registers" && <PackingPlantRegistersConnected supabase={supabase} session={session} profile={profile}/>}
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
           <div className="section-head"><div><span className="eyebrow">PACKING PLANT · FINANCIAL YEAR REPORT</span><h1>Packing Bags Stock Statement</h1><p className="muted">Opening balance, receipts, consumption, damages and closing balance calculated by the existing Supabase report function.</p></div><div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div></div>
