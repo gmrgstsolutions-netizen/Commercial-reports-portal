@@ -265,6 +265,7 @@ function App() {
         <div className="nav-label">PACKING PLANT</div>
         <button className={tab==="Packing Plant Operations"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Operations")}><LayoutDashboard size={17}/>Production &amp; Running Hours</button>
         <button className={tab==="Packing Plant Registers"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Registers")}><LayoutDashboard size={17}/>Shift Registers &amp; Masters</button>
+        {isAdmin && <button className={tab==="Employee Upload"?"nav active":"nav"} onClick={()=>setTab("Employee Upload")}><UploadCloud size={17}/>Employee Upload</button>}
         <button className={tab==="Integrated Reports"?"nav active":"nav"} onClick={()=>setTab("Integrated Reports")}><LayoutDashboard size={17}/>Integrated Reports</button>
         <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
         {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
@@ -308,7 +309,7 @@ function App() {
       <>
         {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile} shiftInchargeName={shiftInchargeName}/>}
         {tab==="Integrated Reports" && <PackingPlantReportsConnected supabase={supabase}/>}
-        {tab==="Packing Plant Registers" && <PackingPlantRegistersConnected supabase={supabase} session={session} profile={profile}/>}
+        {(tab==="Packing Plant Registers" || tab==="Employee Upload") && <PackingPlantRegistersConnected supabase={supabase} session={session} profile={profile} initialSection={tab==="Employee Upload"?"Employee Upload":"Truck Loading"}/>} 
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
           <div className="section-head"><div><span className="eyebrow">PACKING PLANT · FINANCIAL YEAR REPORT</span><h1>Packing Bags Stock Statement</h1><p className="muted">Opening balance, receipts, consumption, damages and closing balance calculated by the existing Supabase report function.</p></div><div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div></div>
