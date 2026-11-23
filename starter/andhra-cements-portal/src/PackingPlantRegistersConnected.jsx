@@ -62,11 +62,11 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    if(missing.length)throw new Error("Missing column heading(s): "+missing.join(", ")+". Use ID No., Name, Job, Mobile No.");
    const parsed=grid.slice(1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>({
     employee_code:String(row[ix.code]??"").trim(),full_name:String(row[ix.name]??"").trim(),
-    staff_category:String(row[ix.job]??"").trim(),mobile_no:String(row[ix.mobile]??"").trim(),source_row:i+2
+    staff_category:(()=>{const job=String(row[ix.job]??"").trim();return /^packer$/i.test(job)?"Packer Operator":job;})(),mobile_no:String(row[ix.mobile]??"").trim(),source_row:i+2
    }));
    if(!parsed.length)throw new Error("No employee rows found below the headings.");
    const errors=[];const seen=new Set();
-   parsed.forEach(r=>{if(!r.employee_code||!r.full_name||!r.staff_category||!r.mobile_no)errors.push("Excel row "+r.source_row+": all four columns are required.");if(seen.has(r.employee_code.toLowerCase()))errors.push("Duplicate ID No. "+r.employee_code+" in the Excel file.");seen.add(r.employee_code.toLowerCase());});
+   parsed.forEach(r=>{if(!r.employee_code||!r.full_name||!r.staff_category||!r.mobile_no)errors.push("Excel row "+r.source_row+": all four columns are required.");if(r.staff_category&&!STAFF.includes(r.staff_category))errors.push("Excel row "+r.source_row+": Job must be one of: "+STAFF.join(", ")+". Use Packer for Packer Operator.");if(seen.has(r.employee_code.toLowerCase()))errors.push("Duplicate ID No. "+r.employee_code+" in the Excel file.");seen.add(r.employee_code.toLowerCase());});
    if(errors.length)throw new Error(errors.slice(0,8).join(" "));
    setEmployeeImportRows(parsed);setNotice("Preview ready: "+parsed.length+" employee records. Existing matching ID numbers will be updated; new IDs will be added.");
   }catch(err){setNotice("Excel file not accepted: "+err.message);}
