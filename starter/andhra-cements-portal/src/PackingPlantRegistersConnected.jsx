@@ -31,6 +31,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
  const [reasons,setReasons]=useState([]),[reasonCategory,setReasonCategory]=useState(CATS[0]),[reason,setReason]=useState(""),[editReason,setEditReason]=useState(null);
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[notice,setNotice]=useState("");
  const [reportFrom,setReportFrom]=useState(today().slice(0,7)+"-01"),[reportTo,setReportTo]=useState(today()),[reportShift,setReportShift]=useState("ALL"),[reportSearch,setReportSearch]=useState(""),[attendanceReportRows,setAttendanceReportRows]=useState([]),[reportBusy,setReportBusy]=useState(false),[reportLoaded,setReportLoaded]=useState(false);
+ const [bagReportDate,setBagReportDate]=useState(today()),[bagFile,setBagFile]=useState(null),[bagFileName,setBagFileName]=useState(""),[bagPreview,setBagPreview]=useState([]),[bagSessions,setBagSessions]=useState([]),[bagMatches,setBagMatches]=useState([]),[bagBusy,setBagBusy]=useState(false);
  const admin=profile?.role==="admin",canEdit=admin||profile?.role==="uploader";
  async function load(){
   setLoading(true);setNotice("");
