@@ -59,17 +59,18 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   return {date:isoLocalDate(cutoff),hours:monthEndActivity?48:8};
  }
  async function fetchDispatchForSessions(sessions){
-  const bounds=sessions.map(x=>{const start=new Date(x.loading_start),end=new Date(x.loading_end);return {from:isoLocalDate(start),to:invoiceCutoffDate(start,end).date};});
-  let cursor=new Date(Math.min(...bounds.map(x=>new Date(x.from+"T00:00:00").getTime())));
-  const finalDate=new Date(Math.max(...bounds.map(x=>new Date(x.to+"T00:00:00").getTime())));
+  const dates=new Set();
+  sessions.forEach(x=>{
+   const start=new Date(x.loading_start),end=new Date(x.loading_end);
+   const from=new Date(isoLocalDate(start)+"T00:00:00");
+   const to=new Date(invoiceCutoffDate(start,end).date+"T00:00:00");
+   for(let d=new Date(from);d<=to;d.setDate(d.getDate()+1))dates.add(isoLocalDate(d));
+  });
   const all=[];
-  while(cursor<=finalDate){
-   const chunkEnd=new Date(cursor);chunkEnd.setDate(chunkEnd.getDate()+3);
-   if(chunkEnd>finalDate)chunkEnd.setTime(finalDate.getTime());
-   const {data,error}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:isoLocalDate(cursor),p_date_to:isoLocalDate(chunkEnd)});
+  for(const day of [...dates].sort()){
+   const {data,error}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:day,p_date_to:day});
    if(error)throw error;
    all.push(...(data||[]));
-   cursor=new Date(chunkEnd);cursor.setDate(cursor.getDate()+1);
   }
   return all;
  }
