@@ -4,6 +4,24 @@ const CATS=["Mechanical","Electrical","Instrumentation","Operational","Planned"]
 const STAFF=["Packer Operator","Loading Operator","Bulk Loading Operator","Belt Helper","Packing PLC Operator","Truck Loading Supervisor","Shift Incharge"];
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const money=n=>Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+const normHeader=v=>String(v??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+function parseBagDateTime(value,fallbackDate){
+ if(value instanceof Date&&!Number.isNaN(value.getTime()))return new Date(value.getFullYear(),value.getMonth(),value.getDate(),value.getHours(),value.getMinutes(),value.getSeconds());
+ const s=String(value??"").trim();
+ let m=s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+ if(m)return new Date(Number(m[3]),Number(m[2])-1,Number(m[1]),Number(m[4]),Number(m[5]),Number(m[6]||0));
+ m=s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+ if(m)return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]),Number(m[6]||0));
+ m=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+ if(m&&fallbackDate){const [y,mo,d]=fallbackDate.split("-").map(Number);return new Date(y,mo-1,d,Number(m[1]),Number(m[2]),Number(m[3]||0));}
+ const parsed=new Date(s);return Number.isNaN(parsed.getTime())?null:parsed;
+}
+const isoLocalDate=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const isoLocalDateTime=d=>isoLocalDate(d)+"T"+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
+const secondsBetween=(a,b)=>Math.max(0,Math.round((b-a)/1000));
+const packerForCounter=n=>n===1?"P1":n===2?"P2":"P3";
+const shiftForStart=d=>{const m=d.getHours()*60+d.getMinutes();return m>=360&&m<840?"A":m>=840&&m<1320?"B":"C";};
+
 export default function PackingPlantRegistersConnected({supabase,session,profile,initialSection="Truck Loading"}){
  const [section,setSection]=useState(initialSection),[date,setDate]=useState(today()),[shift,setShift]=useState("A");
  const [rows,setRows]=useState([]),[vehicle,setVehicle]=useState(""),[product,setProduct]=useState("PPC"),[qty,setQty]=useState(""),[remarks,setRemarks]=useState("");
@@ -30,7 +48,69 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   }catch(err){setNotice("Unable to load register: "+err.message);}
   finally{setLoading(false);}
  }
- useEffect(()=>{load();},[date,shift,section]);
+ useEffect(()=>{load();if(section==="Bag Counting Upload")loadBagSessions();},[date,shift,section]);
+ 
+ async function loadBagSessions(){
+  const {data,error}=await supabase.from("pp_bag_counting_sessions").select("*").eq("business_date",date).order("loading_start");
+  if(error){setNotice("Unable to load bag-counting sessions: "+error.message);return;}
+  setBagSessions(data||[]);
+ }
+ async function previewBagFile(file){
+  setBagFile(file);setBagFileName(file?.name||"");setBagPreview([]);setBagMatches([]);setNotice("");
+  if(!file)return;
+  try{
+   const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+   const sheet=wb.Sheets[wb.SheetNames[0]];
+   const grid=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
+   const headerIndex=grid.findIndex(row=>{const h=row.map(normHeader);return h.some(x=>x==="counterno"||x==="counter")&&h.some(x=>x==="truckno"||x==="trucknumber"||x==="vehicleno")&&h.some(x=>x==="starttime")&&h.some(x=>x==="endtime");});
+   if(headerIndex<0)throw new Error("Could not find headings Counter No, Truck No, Start Time and End Time.");
+   const headers=grid[headerIndex].map(normHeader);
+   const find=(...keys)=>headers.findIndex(h=>keys.includes(h));
+   const ix={counter:find("counterno","counter"),vehicle:find("truckno","trucknumber","vehicleno"),start:find("starttime"),end:find("endtime"),duration:find("difftime","duration")};
+   const rows=grid.slice(headerIndex+1).filter(r=>r.some(v=>String(v??"").trim())).map((r,i)=>{
+    const counter=Number(String(r[ix.counter]??"").trim());
+    const truck=String(r[ix.vehicle]??"").trim().toUpperCase();
+    const start=parseBagDateTime(r[ix.start],bagReportDate);
+    const end=parseBagDateTime(r[ix.end],start?isoLocalDate(start):bagReportDate);
+    const invalid=[];
+    if(![1,2,3,4].includes(counter))invalid.push("Invalid counter");
+    if(!truck||/X{4,}/i.test(truck))invalid.push("Truck number missing/invalid");
+    if(!start||!end||end<start)invalid.push("Start/end time missing or invalid");
+    if(start&&end&&secondsBetween(start,end)>12*3600)invalid.push("Loading duration exceeds 12 hours");
+    if(invalid.length)return {rowNo:headerIndex+i+2,counter,truck,start,end,invalid,valid:false};
+    const shiftCode=shiftForStart(start);
+    const business=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+    if(shiftCode==="C"&&start.getHours()<6)business.setDate(business.getDate()-1);
+    const duration=secondsBetween(start,end);
+    return {rowNo:headerIndex+i+2,counter,truck,start,end,shiftCode,businessDate:isoLocalDate(business),duration,packer:packerForCounter(counter),importKey:[isoLocalDate(start),counter,truck,isoLocalDateTime(start),isoLocalDateTime(end)].join("|"),valid:true,invalid:[]};
+   });
+   setBagPreview(rows);
+   const good=rows.filter(x=>x.valid).length;
+   setNotice("Preview ready: "+rows.length+" rows; "+good+" valid loading sessions; "+(rows.length-good)+" invalid rows will be skipped.");
+  }catch(err){setNotice("Bag Counting Excel could not be read: "+err.message);}
+ }
+ async function importBagCounting(){
+  if(!canEdit||!bagPreview.some(x=>x.valid))return;
+  setBagBusy(true);setNotice("");
+  try{
+   const valid=bagPreview.filter(x=>x.valid);
+   const dates=valid.map(x=>x.start);
+   const min=new Date(Math.min(...dates.map(d=>d.getTime())));min.setDate(min.getDate()-1);
+   const max=new Date(Math.max(...dates.map(d=>d.getTime())));
+   const from=isoLocalDate(min),to=isoLocalDate(max);
+   if((max-min)/86400000>3)throw new Error("Please upload one daily Bag Counting report at a time (maximum four calendar dates including C-shift carry-over).");
+   const payload=valid.map(x=>({import_key:x.importKey,source_report_date:bagReportDate,business_date:x.businessDate,shift_code:x.shiftCode,counter_no:x.counter,packer_code:x.packer,vehicle_number:x.truck,loading_start:isoLocalDateTime(x.start),loading_end:isoLocalDateTime(x.end),duration_seconds:x.duration,source_file_name:bagFileName,imported_by:session.user.id}));
+   const {error:saveError}=await supabase.from("pp_bag_counting_sessions").upsert(payload,{onConflict:"import_key"});
+   if(saveError)throw saveError;
+   const {data:dispatch,error:dispatchError}=await supabase.rpc("get_pp_dispatch_matches",{p_date_from:from,p_date_to:to});
+   if(dispatchError)throw dispatchError;
+   const matched=valid.map(x=>({...x,dispatchLines:(dispatch||[]).filter(d=>String(d.vehicle_no||"").replace(/\s/g,"").toUpperCase()===x.truck.replace(/\s/g,"")&&d.dispatch_date>=isoLocalDate(new Date(x.start.getFullYear(),x.start.getMonth(),x.start.getDate()-1))&&d.dispatch_date<=isoLocalDate(x.end))}));
+   setBagMatches(matched);
+   setNotice("Imported "+valid.length+" bag-counting sessions. "+matched.filter(x=>x.dispatchLines.length).length+" sessions matched with dispatch vehicle lines; "+matched.filter(x=>!x.dispatchLines.length).length+" require review.");
+   await loadBagSessions();
+  }catch(err){setNotice("Bag Counting import failed: "+err.message);}
+  finally{setBagBusy(false);}
+ }
  async function addTruck(){
   const n=Number(qty);if(!vehicle.trim()||!Number.isFinite(n)||n<=0){setNotice("Enter vehicle number and quantity greater than zero.");return;}
   setSaving(true);setNotice("");
@@ -140,11 +220,15 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
  const total=rows.reduce((s,x)=>s+Number(x.quantity_mt),0),ppc=rows.filter(x=>x.product_code==="PPC").reduce((s,x)=>s+Number(x.quantity_mt),0),opc=total-ppc;
  return <section className="pp-registers">
   <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Shift Registers &amp; Masters</h1><p className="muted">Truck loading, attendance, employee and stoppage reason registers</p></div><span className="pill">{admin?"Administrator":canEdit?"Uploader":"Read-only"}</span></div>
-  <div className="panel"><div className="mapping-grid pp-register-grid"><label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00</option><option value="G">G Shift · 08:00–17:00</option></select></label><div className="pp-kpi"><span>Shift business date</span><b>{date}</b></div></div></div>
-  <div className="pp-register-tabs">{["Truck Loading","Attendance","Attendance Report","Employee Master","Holiday Master","Stoppage Reason Master"].map(x=><button key={x} className={section===x?"primary":"secondary"} onClick={()=>setSection(x)}>{x}</button>)}</div>
+  <div className="panel"><div className="mapping-grid pp-register-grid"><label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00</option>{(section==="Attendance"||section==="Attendance Report")&&<option value="G">G Shift · 08:00–17:00</option>}</select></label><div className="pp-kpi"><span>Shift business date</span><b>{date}</b></div></div></div>
+  <div className="pp-register-tabs">{["Truck Loading","Bag Counting Upload","Attendance","Attendance Report","Employee Master","Holiday Master","Stoppage Reason Master"].map(x=><button key={x} className={section===x?"primary":"secondary"} onClick={()=>setSection(x)}>{x}</button>)}</div>
   {section==="Truck Loading"&&<><div className="panel"><h3>Individual truck loading entry</h3><div className="mapping-grid pp-register-grid"><label>Vehicle number<input value={vehicle} onChange={e=>setVehicle(e.target.value)} placeholder="Vehicle number" disabled={!canEdit}/></label><label>Product<select value={product} onChange={e=>setProduct(e.target.value)} disabled={!canEdit}><option>PPC</option><option>OPC</option></select></label><label>Quantity (MT)<input type="number" min="0" step="0.01" value={qty} onChange={e=>setQty(e.target.value)} disabled={!canEdit}/></label><label>Remarks (optional)<input value={remarks} onChange={e=>setRemarks(e.target.value)} disabled={!canEdit}/></label></div><button className="primary" onClick={addTruck} disabled={!canEdit||saving}>{saving?"Saving…":"Save truck entry"}</button></div>
    <div className="stats pp-truck-stats"><div className="stat"><span>Trucks</span><b>{rows.length}</b></div><div className="stat"><span>Total quantity (MT)</span><b>{money(total)}</b></div><div className="stat"><span>PPC (MT)</span><b>{money(ppc)}</b></div><div className="stat"><span>OPC (MT)</span><b>{money(opc)}</b></div></div>
    <div className="panel"><h3>Truck loading register</h3><div className="table-scroll"><table><thead><tr><th>Vehicle</th><th>Product</th><th>Quantity MT</th><th>Remarks</th><th>Recorded</th></tr></thead><tbody>{rows.map(x=><tr key={x.id}><td>{x.vehicle_number}</td><td>{x.product_code}</td><td className="num">{money(x.quantity_mt)}</td><td>{x.remarks||"—"}</td><td>{new Date(x.created_at).toLocaleString()}</td></tr>)}{!rows.length&&<tr><td colSpan="5" className="muted">No truck entries for this shift.</td></tr>}</tbody></table></div></div></>}
+  
+  {section==="Bag Counting Upload"&&<><div className="panel"><h3>Cement Bag Counting System · Excel Import</h3><p className="footnote">Upload the daily Excel report. Counter 1 = Packer 1, Counter 2 = Packer 2, Counters 3 and 4 = Packer 3. Shift is suggested from loading start time.</p><div className="mapping-grid pp-register-grid"><label>Bag Counting report date<input type="date" value={bagReportDate} onChange={e=>setBagReportDate(e.target.value)} disabled={!canEdit}/></label><label>Excel file (.xlsx / .xls)<input type="file" accept=".xlsx,.xls" onChange={e=>previewBagFile(e.target.files?.[0]||null)} disabled={!canEdit}/></label></div>{bagFileName&&<p className="footnote">Selected file: {bagFileName}</p>}{bagPreview.length>0&&<><div className="stats pp-truck-stats"><div className="stat"><span>Rows</span><b>{bagPreview.length}</b></div><div className="stat"><span>Valid sessions</span><b>{bagPreview.filter(x=>x.valid).length}</b></div><div className="stat"><span>Invalid rows</span><b>{bagPreview.filter(x=>!x.valid).length}</b></div></div><div className="table-scroll"><table><thead><tr><th>Excel Row</th><th>Counter</th><th>Packer</th><th>Vehicle</th><th>Shift</th><th>Business Date</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th></tr></thead><tbody>{bagPreview.map(x=><tr key={x.rowNo}><td>{x.rowNo}</td><td>{x.counter||"—"}</td><td>{x.packer||"—"}</td><td>{x.truck||"—"}</td><td>{x.shiftCode||"—"}</td><td>{x.businessDate||"—"}</td><td>{x.start?x.start.toLocaleString():"—"}</td><td>{x.end?x.end.toLocaleString():"—"}</td><td>{x.duration!=null?new Date(x.duration*1000).toISOString().slice(11,19):"—"}</td><td>{x.valid?"Ready":x.invalid.join(", ")}</td></tr>)}</tbody></table></div><button className="primary" onClick={importBagCounting} disabled={!canEdit||bagBusy||!bagPreview.some(x=>x.valid)}>{bagBusy?"Importing…":"Import & Reconcile with Dispatch"}</button></>}</div>
+   {bagMatches.length>0&&<div className="panel"><h3>Dispatch reconciliation · Imported sessions</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>Vehicle</th><th>Loading Start</th><th>Loading End</th><th>Duration</th><th>Dispatch Match</th><th>Invoice / Product / Qty</th></tr></thead><tbody>{bagMatches.map((x,i)=><tr key={x.importKey}><td>{x.packer}</td><td>{x.counter}</td><td>{x.shiftCode}</td><td>{x.truck}</td><td>{x.start.toLocaleString()}</td><td>{x.end.toLocaleString()}</td><td>{new Date(x.duration*1000).toISOString().slice(11,19)}</td><td>{x.dispatchLines.length?"Matched":"Not found"}</td><td>{x.dispatchLines.length?x.dispatchLines.map(d=>d.invoice_no+" · "+d.product_code+" · "+money(d.qty)+" MT").join("; "):"No dispatch line found for this vehicle/date"}</td></tr>)}</tbody></table></div></div>}
+   <div className="panel"><h3>Imported Bag Counting sessions · {date}</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>Vehicle</th><th>Start</th><th>End</th><th>Duration</th></tr></thead><tbody>{bagSessions.map(x=><tr key={x.id}><td>{x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3"}</td><td>{x.counter_no}</td><td>{x.shift_code}</td><td>{x.vehicle_number}</td><td>{new Date(x.loading_start).toLocaleString()}</td><td>{new Date(x.loading_end).toLocaleString()}</td><td>{new Date(x.duration_seconds*1000).toISOString().slice(11,19)}</td></tr>)}{!bagSessions.length&&<tr><td colSpan="7" className="muted">No imported sessions for this Packing Plant business date.</td></tr>}</tbody></table></div></div></>}
   {section==="Attendance"&&<div className="panel"><h3>Shift-wise employee attendance</h3>{holiday&&<div className="alert">Holiday: {holiday.description}. Extra Duty applies only after at least 7 regular attended days earlier in this calendar month.</div>}
    <div className="mapping-grid pp-register-grid">
     <label>Attendance date<input type="date" value={date} max={today()} onChange={e=>setDate(e.target.value)} disabled={!admin&&attendanceRows.length>0}/></label>
