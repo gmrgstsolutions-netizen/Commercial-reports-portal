@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow } from "lucide-react";
 import "./style.css";
 import PackingPlantConnected from "./PackingPlantConnected.jsx";
-import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";
+import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";\nimport PackingPlantReportsConnected from "./PackingPlantReportsConnected.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -230,7 +230,7 @@ function App() {
       </select>
       <div className="nav-label">PACKING PLANT</div>
       <button className={tab==="Packing Plant Operations"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Operations")}><LayoutDashboard size={17}/>Production &amp; Running Hours</button>
-      <button className={tab==="Packing Plant Registers"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Registers")}><LayoutDashboard size={17}/>Shift Registers &amp; Masters</button>
+      <button className={tab==="Packing Plant Registers"?"nav active":"nav"} onClick={()=>setTab("Packing Plant Registers")}><LayoutDashboard size={17}/>Shift Registers &amp; Masters</button>\n      <button className={tab==="Integrated Reports"?"nav active":"nav"} onClick={()=>setTab("Integrated Reports")}><LayoutDashboard size={17}/>Integrated Reports</button>
       <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
       {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
       <button className={tab==="Packing Bags Receipts"?"nav active":"nav"} onClick={()=>setTab("Packing Bags Receipts")}><History size={17}/>Packing Bags Receipts</button>
@@ -269,7 +269,7 @@ function App() {
         <div className="alert warning">Card Issue Details is not connected yet: the verified database inventory contains no dedicated Card Issue table or RPC. It will not be substituted with Outside Main Gate. Transaction-wise report requires both dates and a maximum 93-day range. Upload workflows and export controls remain pending verification.</div>
       </section> :
       <>
-        {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile}/>}
+        {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile}/>}\n        {tab==="Integrated Reports" && <PackingPlantReportsConnected supabase={supabase}/>}
         {tab==="Packing Plant Registers" && <PackingPlantRegistersConnected supabase={supabase} session={session} profile={profile}/>}
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
