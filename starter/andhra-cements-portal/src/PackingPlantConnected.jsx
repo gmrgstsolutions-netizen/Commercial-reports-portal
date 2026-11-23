@@ -77,6 +77,10 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   async function save() {
     if(!canEdit){setMessage("Your account has read-only access. Contact the administrator for uploader access.");return;}
     if(timeline.some(p=>p.overlap)){setMessage("Correct overlapping or out-of-shift running intervals before saving.");return;}
+    for(const p of timeline){
+      const unclassified=p.gaps.find(g=>!gapChoices[p.id+"-"+g.start+"-"+g.end]?.category);
+      if(unclassified){setMessage(p.name+" stoppage from "+fromRelative(unclassified.start,shift)+" to "+fromRelative(unclassified.end,shift)+" needs a category before saving.");return;}
+    }
     for(const p of PACKERS)for(const product of ["PPC","OPC"]){const v=production[p.id]?.[product];if(v!==undefined&&v!==""&&(!Number.isFinite(Number(v))||Number(v)<0)){setMessage("Production quantity must be zero or a positive number.");return;}}
     setSaving(true);setMessage("");
     try{
