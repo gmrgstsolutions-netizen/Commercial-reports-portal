@@ -6,7 +6,7 @@ const REPORTS = [
   { key: "daily_summary", label: "Daily Packing Summary", note: "Shift-wise production, number of active packers and truck-loading quantity." },
   { key: "production_dispatch", label: "Production vs Dispatch", note: "Daily product-wise production compared with cement and clinker dispatch. Difference = production minus dispatch." },
   { key: "dispatch_reconciliation", label: "Packing Dispatch Reconciliation", note: "Vehicle and date matching between dispatch invoice quantities and completed weighbridge net weights. Differences require review; this is not an invoice-level weighment allocation." },
-  { key: "raw_material_receipts", label: "Weighbridge Raw Material Receipts", note: "Completed inward weighments grouped by date, material classification and supplier. Scrap/outgoing records are excluded; missing shifts remain unclassified." },
+  { key: "raw_material_receipts", label: "Weighbridge Raw Material Receipts", note: "External-type inward weighments grouped by date, material and supplier. Cement/CLN dispatch weighments and outgoing scrap are excluded; missing shifts remain unclassified." },
   { key: "monthly_performance", label: "Monthly / FY Packing Performance", note: "Monthly production compared with cement and clinker dispatch for the selected date range. FY range can be selected as 1 April to 31 March." }
 ];
 
@@ -17,7 +17,7 @@ const LABELS = {
   difference_mt: "Difference (MT)", dispatch_date: "Dispatch Date", vehicle_no: "Vehicle Number",
   invoice_numbers: "Invoice Numbers", invoice_lines: "Invoice Lines", weighbridge_mt: "Weighbridge (MT)",
   weighment_records: "Weighment Records", match_status: "Match Status", receipt_date: "Receipt Date",
-  material_group: "Material", supplier: "Supplier", transactions: "Transactions",
+  material_group: "Category", material: "Material", supplier: "Supplier", transactions: "Transactions",
   net_mt: "Net Weight (MT)", unclassified_shift_records: "Unclassified Shift Records", month: "Month"
 };
 
@@ -91,6 +91,6 @@ export default function PackingPlantReportsConnected({ supabase }) {
         {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
       </tbody></table></div> : <p className="muted">No records found for the selected dates. Production reports will populate after Packing Plant shift entries are saved.</p>}
     </div>}
-    <div className="alert warning">Important: vehicle/date reconciliation is an indicative comparison, not proof that a particular weighment belongs to a particular invoice. Review differences before taking action. Raw-material quantities represent completed weighbridge inward movements, not consumption.</div>
+    <div className="alert warning">Important: vehicle/date reconciliation is an indicative comparison, not proof that a particular weighment belongs to a particular invoice. Review differences before taking action. Raw Material Receipts includes only External-type inward movements; Cement/CLN weighments are treated as finished-product dispatch, and Outgoing scrap is excluded. These are receipts, not consumption.</div>
   </section>;
 }
