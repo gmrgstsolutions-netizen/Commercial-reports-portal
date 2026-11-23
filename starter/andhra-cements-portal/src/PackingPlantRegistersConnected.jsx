@@ -4,8 +4,8 @@ const CATS=["Mechanical","Electrical","Instrumentation","Operational","Planned"]
 const STAFF=["Packer Operator","Loading Operator","Bulk Loading Operator","Belt Helper","Packing PLC Operator","Truck Loading Operator","Shift Incharge"];
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const money=n=>Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
-export default function PackingPlantRegistersConnected({supabase,session,profile}){
- const [section,setSection]=useState("Truck Loading"),[date,setDate]=useState(today()),[shift,setShift]=useState("A");
+export default function PackingPlantRegistersConnected({supabase,session,profile,initialSection="Truck Loading"}){
+ const [section,setSection]=useState(initialSection),[date,setDate]=useState(today()),[shift,setShift]=useState("A");
  const [rows,setRows]=useState([]),[vehicle,setVehicle]=useState(""),[product,setProduct]=useState("PPC"),[qty,setQty]=useState(""),[remarks,setRemarks]=useState("");
  const [employees,setEmployees]=useState([]),[name,setName]=useState(""),[code,setCode]=useState(""),[category,setCategory]=useState(STAFF[0]);
  const [employeeFile,setEmployeeFile]=useState(""),[employeeImportRows,setEmployeeImportRows]=useState([]),[employeeImportBusy,setEmployeeImportBusy]=useState(false);
