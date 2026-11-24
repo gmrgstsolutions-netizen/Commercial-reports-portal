@@ -352,7 +352,15 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     if(Object.values(candidate).every(v=>v>=0)){headerRow=r;ix=candidate;break;}
    }
    if(headerRow<0){const headers=grid[0].map(norm),find=key=>headers.findIndex(h=>aliases[key].includes(h)),candidate={date:find("date"),code:find("code"),name:find("name"),shift:find("shift")};const missing=Object.entries(candidate).filter(([,v])=>v<0).map(([k])=>({date:"Date",code:"ID No",name:"Name of the workmen",shift:"Shift"}[k]));throw new Error("Missing column heading(s): "+missing.join(", ")+". Accepted name headings include 'Name of the workmen'.");}
-   const employeeMap=new Map(employees.filter(e=>e.is_active).map(e=>[String(e.employee_code||"").trim().toLowerCase(),e]));
+   // Excel "ID No" is matched against Employee Master employee_code.
+   // Normalise numeric Excel IDs (e.g. 20240, 20240.0, "20,240") consistently.
+   const normalizeEmployeeId=value=>{
+    let id=String(value??"").trim().replace(/\u00a0/g,"").replace(/,/g,"").replace(/\s+/g,"").toLowerCase();
+    if(/^\d+\.0+$/.test(id))id=id.replace(/\.0+$/,"");
+    if(/^\d+$/.test(id))id=id.replace(/^0+(?=\d)/,"");
+    return id;
+   };
+   const employeeMap=new Map(employees.filter(e=>e.is_active&&e.employee_code!=null).map(e=>[normalizeEmployeeId(e.employee_code),e]));
    const parseDate=v=>{
     const s=String(v??"").trim();let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
     if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
@@ -363,11 +371,11 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    };
    const parsed=grid.slice(headerRow+1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>{
     const rawShift=String(row[ix.shift]??"").trim().toUpperCase().replace(/\s+/g,"");
-    const shiftCode=rawShift.replace(/SHIFT$/,""),employeeCode=String(row[ix.code]??"").trim(),employee=employeeMap.get(employeeCode.toLowerCase());
+    const shiftCode=rawShift.replace(/SHIFT$/,""),employeeCode=String(row[ix.code]??"").trim(),employee=employeeMap.get(normalizeEmployeeId(row[ix.code]));
     const businessDate=parseDate(row[ix.date]),workmenName=String(row[ix.name]??"").trim(),issues=[];
     if(!businessDate)issues.push("Invalid date");if(!employeeCode)issues.push("Missing ID No");if(!employee)issues.push("ID No not found in active Employee Master");if(!workmenName)issues.push("Missing workmen name");
     if(!["A","B","C","G"].includes(shiftCode))issues.push("Shift must be A, B, C or G");if(businessDate&&businessDate>today())issues.push("Future attendance date");
-    return {business_date:businessDate,employee_code:employeeCode,full_name:employee?.full_name||workmenName,source_name:workmenName,employee_id:employee?.id||null,shift_code:shiftCode,source_row:i+2,issues};
+    return {business_date:businessDate,employee_code:employeeCode,full_name:employee?.full_name||workmenName,source_name:workmenName,employee_id:employee?.id||null,shift_code:shiftCode,source_row:headerRow+i+2,issues};
    });
    if(!parsed.length)throw new Error("No attendance rows found below the headings.");
    const seen=new Set();for(const r of parsed){const k=[r.business_date,r.shift_code,r.employee_code.toLowerCase()].join("|");if(seen.has(k))r.issues.push("Duplicate employee/date/shift row in Excel");seen.add(k);}
