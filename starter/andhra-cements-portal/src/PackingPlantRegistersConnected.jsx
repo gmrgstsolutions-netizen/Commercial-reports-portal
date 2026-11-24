@@ -337,17 +337,21 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   }catch(err){setNotice("Excel file not accepted: "+err.message);}
  }
 
- async function readAttendanceFile(file){
+ async async function readAttendanceFile(file){
   if(!file)return;setAttendanceFile(file.name);setAttendanceImportRows([]);setNotice("");
   try{
    const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
    const ws=wb.Sheets[wb.SheetNames[0]],grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
    if(!grid.length)throw new Error("The selected Excel sheet is empty.");
    const norm=v=>String(v??"").toLowerCase().replace(/[^a-z0-9]/g,"");
-   const headers=grid[0].map(norm),find=(...names)=>headers.findIndex(h=>names.includes(h));
-   const ix={date:find("date","attendancedate"),code:find("idno","idnumber","employeeid","employeecode"),name:find("nameofworkmen","nameofworkman","name","employeename"),shift:find("shift","shiftcode")};
-   const missing=Object.entries(ix).filter(([,v])=>v<0).map(([k])=>({date:"Date",code:"ID No",name:"Name of the workmen",shift:"Shift"}[k]));
-   if(missing.length)throw new Error("Missing column heading(s): "+missing.join(", "));
+   const aliases={date:["date","attendancedate"],code:["idno","idnumber","employeeid","employeecode"],name:["nameofworkmen","nameofworkman","nameoftheworkmen","nameoftheworkman","workmenname","workmanname","name","employeename"],shift:["shift","shiftcode"]};
+   let headerRow=-1,ix=null;
+   for(let r=0;r<Math.min(grid.length,20);r++){
+    const headers=grid[r].map(norm),find=key=>headers.findIndex(h=>aliases[key].includes(h));
+    const candidate={date:find("date"),code:find("code"),name:find("name"),shift:find("shift")};
+    if(Object.values(candidate).every(v=>v>=0)){headerRow=r;ix=candidate;break;}
+   }
+   if(headerRow<0){const headers=grid[0].map(norm),find=key=>headers.findIndex(h=>aliases[key].includes(h)),candidate={date:find("date"),code:find("code"),name:find("name"),shift:find("shift")};const missing=Object.entries(candidate).filter(([,v])=>v<0).map(([k])=>({date:"Date",code:"ID No",name:"Name of the workmen",shift:"Shift"}[k]));throw new Error("Missing column heading(s): "+missing.join(", ")+". Accepted name headings include 'Name of the workmen'.");}
    const employeeMap=new Map(employees.filter(e=>e.is_active).map(e=>[String(e.employee_code||"").trim().toLowerCase(),e]));
    const parseDate=v=>{
     const s=String(v??"").trim();let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
@@ -357,7 +361,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     if(/^\d+(\.\d+)?$/.test(s)){const n=Number(s);if(n>20000&&n<80000){const d=new Date(Date.UTC(1899,11,30)+n*86400000);return d.toISOString().slice(0,10);}}
     return "";
    };
-   const parsed=grid.slice(1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>{
+   const parsed=grid.slice(headerRow+1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>{
     const rawShift=String(row[ix.shift]??"").trim().toUpperCase().replace(/\s+/g,"");
     const shiftCode=rawShift.replace(/SHIFT$/,""),employeeCode=String(row[ix.code]??"").trim(),employee=employeeMap.get(employeeCode.toLowerCase());
     const businessDate=parseDate(row[ix.date]),workmenName=String(row[ix.name]??"").trim(),issues=[];
