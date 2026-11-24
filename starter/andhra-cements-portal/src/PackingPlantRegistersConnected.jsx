@@ -119,11 +119,12 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
      supabase.from("pp_packslip_timestamps").select("packslip_no,item_code,quantity,created_date,packslip_shipped_date,vehicle_no,carrier_code,company_code").gte("packslip_date",packerFrom).lte("packslip_date",latestCutoff)
     ]);
     if(dispatchError)throw dispatchError;if(packslipError)throw packslipError;
-    const packslipByNo=new Map((packslipRows||[]).map(p=>[String(p.packslip_no||"").trim().toUpperCase(),p]));
+    const cementPackslips=(packslipRows||[]).filter(p=>["OPC53B","PPCB","OPC53H","PPCH","PPCL"].includes(String(p.item_code||"").trim().toUpperCase()));
+    const packslipByNo=new Map(cementPackslips.map(p=>[String(p.packslip_no||"").trim().toUpperCase(),p]));
     const dispatch=(dispatchRaw||[]).map(d=>({...d,packslipTimestamp:packslipByNo.get(String(d.packslip_no||"").trim().toUpperCase())||null}));
     const dispatchByPackslip=new Map();dispatch.forEach(d=>{const no=String(d.packslip_no||"").trim().toUpperCase();if(!no)return;dispatchByPackslip.set(no,[...(dispatchByPackslip.get(no)||[]),d]);});
     const packslipIntegrity=new Map([...packslipByNo.entries()].map(([no,p])=>{const lines=dispatchByPackslip.get(no)||[],qty=lines.reduce((n,d)=>n+Number(d.qty||0),0),tol=Math.max(Number(p.quantity||0)*.01,.05),valid=lines.length>0&&lines.every(d=>normVehicle(d.vehicle_no)===normVehicle(p.vehicle_no)&&String(d.product_code||"").toUpperCase()===String(p.item_code||"").toUpperCase())&&Math.abs(qty-Number(p.quantity||0))<=tol;return [no,valid];}));
-    const unmatchedPackslips=(packslipRows||[]).filter(p=>!dispatchByPackslip.has(String(p.packslip_no||"").trim().toUpperCase()));
+    const unmatchedPackslips=cementPackslips.filter(p=>!dispatchByPackslip.has(String(p.packslip_no||"").trim().toUpperCase()));
     const bagCodes=new Set(["OPC53H","PPCH","PPCL"]);
     const bagCandidates=allSessions.map(x=>{const w=sessionWindow(x),lines=dispatch.filter(d=>normVehicle(d.vehicle_no)===w.vehicle&&bagCodes.has(String(d.product_code||"").toUpperCase())&&d.dispatch_date>=w.from&&d.dispatch_date<=w.to),end=new Date(x.loading_end),cutoff=new Date(end.getTime()+invoiceCutoffDate(new Date(x.loading_start),end).hours*3600000),eligibleLines=lines.filter(d=>{const stamp=d.packslipTimestamp?.created_date?new Date(String(d.packslipTimestamp.created_date).replace(" ","T")):null;return stamp&&!Number.isNaN(stamp.getTime())&&stamp>=end&&stamp<=cutoff&&packslipIntegrity.get(String(d.packslip_no||"").trim().toUpperCase())===true;});return {session:x,lines,eligibleLines};});
     const bagUse=new Map();bagCandidates.forEach(c=>c.eligibleLines.forEach(d=>bagUse.set(d.invoice_no,(bagUse.get(d.invoice_no)||0)+1)));
