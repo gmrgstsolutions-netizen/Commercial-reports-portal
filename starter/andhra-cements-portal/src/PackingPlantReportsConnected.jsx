@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 
 const REPORTS = [
   { key: "shift_production", label: "Shift-wise Packing Production", note: "Actual recorded PPC/OPC production and running hours by business date, shift, packer and product." },
+  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Packer 1, Bulk Loading, Packer 2 and Packer 3 running hours, stoppage periods, reasons and daily totals." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Shift-wise production, number of active packers and truck-loading quantity." },
   { key: "production_dispatch", label: "Production vs Dispatch", note: "Daily product-wise production compared with cement and clinker dispatch. Difference = production minus dispatch." },
   { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
@@ -12,6 +13,7 @@ const REPORTS = [
 
 const LABELS = {
   business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product",
+  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Start Time", duration_hours: "Duration (Hours)", category: "Category", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)",
   dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
   production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
   truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
@@ -22,7 +24,7 @@ const LABELS = {
   net_mt: "Net Weight (MT)", unclassified_shift_records: "Unclassified Shift Records", month: "Month"
 };
 
-const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty"]);
+const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty","stop_number","duration_hours","day_stoppage_hours","day_running_hours","day_production_mt"]);
 
 function display(value, key) {
   if (value === null || value === undefined || value === "") return "—";
@@ -51,9 +53,9 @@ export default function PackingPlantReportsConnected({ supabase }) {
     if (fromDate > toDate) { setError("From Date must not be after To Date."); return; }
     setBusy(true); setError("");
     try {
-      const { data: result, error: rpcError } = await supabase.rpc("get_packing_plant_integrated_report", {
-        p_report_key: reportKey, p_date_from: fromDate, p_date_to: toDate
-      });
+      const rpcName = reportKey === "daily_stoppage" ? "get_packing_plant_stoppage_report" : "get_packing_plant_integrated_report";
+      const rpcArgs = reportKey === "daily_stoppage" ? { p_date_from: fromDate, p_date_to: toDate } : { p_report_key: reportKey, p_date_from: fromDate, p_date_to: toDate };
+      const { data: result, error: rpcError } = await supabase.rpc(rpcName, rpcArgs);
       if (rpcError) throw rpcError;
       setData(result || { rows: [] });
     } catch (e) {
