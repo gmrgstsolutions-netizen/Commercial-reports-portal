@@ -381,7 +381,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    const dates=[...new Set(attendanceImportRows.map(x=>x.business_date))],employeeIds=[...new Set(attendanceImportRows.map(x=>x.employee_id))];
    const [holidayResult,priorResult]=await Promise.all([
     supabase.from("pp_holidays").select("holiday_date").in("holiday_date",dates).eq("is_active",true),
-    supabase.from("pp_attendance").select("employee_id,business_date").in("employee_id",employeeIds).eq("attendance_status","present").eq("duty_classification","actual_duty").in("business_date",dates.map(d=>d.slice(0,7)+"-01"))
+    supabase.from("pp_attendance").select("employee_id,business_date").in("employee_id",employeeIds).eq("attendance_status","present").eq("duty_classification","actual_duty").gte("business_date",dates.map(d=>d.slice(0,7)+"-01").sort()[0]).lt("business_date",dates.slice().sort().at(-1))
    ]);
    if(holidayResult.error)throw holidayResult.error;if(priorResult.error)throw priorResult.error;
    const holidaySet=new Set((holidayResult.data||[]).map(x=>x.holiday_date));
