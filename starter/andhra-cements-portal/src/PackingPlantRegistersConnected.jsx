@@ -384,9 +384,14 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     return {business_date:businessDate,employee_code:employeeCode,full_name:employee?.full_name||workmenName,source_name:workmenName,employee_id:employee?.id||null,shift_code:shiftCode,source_row:headerRow+i+2,issues};
    });
    if(!parsed.length)throw new Error("No attendance rows found below the headings.");
-   const seen=new Set();for(const r of parsed){if(!r.business_date||!r.employee_id||!r.shift_code)continue;const k=[r.business_date,r.shift_code,r.employee_id].join("|");if(seen.has(k))r.issues.push("Duplicate employee/date/shift row in Excel");seen.add(k);}
-   setAttendanceImportRows(parsed);const bad=parsed.filter(x=>x.issues.length).length;
-   setNotice("Attendance preview ready: "+parsed.length+" rows; "+(parsed.length-bad)+" valid and "+bad+" need correction.");
+   // Keep genuine double duty (same employee/date, different shifts). Automatically skip only exact duplicate employee/date/shift rows, retaining the first occurrence.
+   const seen=new Set(),uniqueParsed=[];let skippedDuplicates=0;
+   for(const r of parsed){
+    if(r.business_date&&r.employee_id&&r.shift_code){const k=[r.business_date,r.shift_code,r.employee_id].join("|");if(seen.has(k)){skippedDuplicates++;continue;}seen.add(k);}
+    uniqueParsed.push(r);
+   }
+   setAttendanceImportRows(uniqueParsed);const bad=uniqueParsed.filter(x=>x.issues.length).length;
+   setNotice("Attendance preview ready: "+uniqueParsed.length+" rows; "+(uniqueParsed.length-bad)+" valid and "+bad+" need correction."+(skippedDuplicates?" Automatically skipped "+skippedDuplicates+" exact duplicate employee/date/shift rows.":""));
   }catch(err){setNotice("Attendance file not accepted: "+err.message);}
  }
  async function uploadAttendanceFile(){
