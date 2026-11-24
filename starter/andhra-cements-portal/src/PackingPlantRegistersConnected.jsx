@@ -340,8 +340,9 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
  async function readAttendanceFile(file){
   if(!file)return;setAttendanceFile(file.name);setAttendanceImportRows([]);setNotice("");
   try{
-   const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
-   const ws=wb.Sheets[wb.SheetNames[0]],grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
+   const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+   // Preserve Excel date cells as Date objects. raw:false formats this workbook's mm-dd-yy dates as text and reverses the expected day/month order.
+   const ws=wb.Sheets[wb.SheetNames[0]],grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
    if(!grid.length)throw new Error("The selected Excel sheet is empty.");
    const norm=v=>String(v??"").toLowerCase().replace(/[^a-z0-9]/g,"");
    const aliases={date:["date","attendancedate"],code:["idno","idnumber","employeeid","employeecode"],name:["nameofworkmen","nameofworkman","nameoftheworkmen","nameoftheworkman","workmenname","workmanname","name","employeename"],shift:["shift","shiftcode"]};
