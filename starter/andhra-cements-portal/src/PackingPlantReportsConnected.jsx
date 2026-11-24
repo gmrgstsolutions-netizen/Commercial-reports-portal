@@ -12,9 +12,10 @@ const REPORTS = [
 
 const LABELS = {
   business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product",
-  dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",\n  production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
+  dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
+  production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
   truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
-  difference_mt: "Difference (MT)", dispatch_date: "Dispatch Date", vehicle_no: "Vehicle Number",
+  difference_mt: "Difference (MT)",
   invoice_numbers: "Invoice Numbers", invoice_lines: "Invoice Lines", weighbridge_mt: "Weighbridge (MT)",
   weighment_records: "Weighment Records", match_status: "Match Status", receipt_date: "Receipt Date",
   material_group: "Category", material: "Material", supplier: "Supplier", transactions: "Transactions",
