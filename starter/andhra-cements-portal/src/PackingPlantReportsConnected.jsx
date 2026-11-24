@@ -67,7 +67,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
   useEffect(() => { loadReport(); }, [reportKey]);
 
   const totals = useMemo(() => {
-    const totalKeys = columns.filter(k => NUMERIC.has(k) && k !== "active_packers");
+    const totalKeys = columns.filter(k => NUMERIC.has(k) && k !== "active_packers" && k !== "stop_number");
     return Object.fromEntries(totalKeys.map(k => [k, rows.reduce((sum, row) => sum + (Number(row[k]) || 0), 0)]));
   }, [columns, rows]);
 
