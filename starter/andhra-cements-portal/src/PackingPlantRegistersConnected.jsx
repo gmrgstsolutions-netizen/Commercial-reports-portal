@@ -290,28 +290,33 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   if(!reportFrom||!reportTo||reportFrom>reportTo){setNotice("Select a valid From Date and To Date.");return;}
   setReportBusy(true);setNotice("");
   try{
-   let q=supabase.from("pp_attendance").select("id,business_date,shift_code,attendance_status,duty_classification,employee:pp_employees(employee_code,full_name,staff_category)").gte("business_date",reportFrom).lte("business_date",reportTo).order("business_date",{ascending:true}).order("shift_code",{ascending:true});
-   if(reportShift!=="ALL")q=q.eq("shift_code",reportShift);
-   const {data,error}=await q;if(error)throw error;
-   setAttendanceReportRows(data||[]);setReportLoaded(true);setNotice("Attendance report loaded: "+(data||[]).length+" records.");
-  }catch(err){setNotice("Unable to load attendance report: "+err.message);}
+   const [{data:att,error:attError},{data:staff,error:staffError}]=await Promise.all([
+    supabase.from("pp_attendance").select("id,employee_id,business_date,shift_code,attendance_status,duty_classification").gte("business_date",reportFrom).lte("business_date",reportTo).order("business_date",{ascending:true}).order("shift_code",{ascending:true}),
+    supabase.from("pp_employees").select("id,employee_code,full_name,staff_category").eq("is_active",true).order("full_name",{ascending:true})
+   ]);
+   if(attError)throw attError;if(staffError)throw staffError;
+   const staffById=new Map((staff||[]).map(e=>[e.id,e]));
+   setEmployees(staff||[]);
+   setAttendanceReportRows((att||[]).map(x=>({...x,employee:staffById.get(x.employee_id)||null})));
+   setReportLoaded(true);setNotice("Attendance register generated for "+(staff||[]).length+" employees and "+(att||[]).length+" duty entries.");
+  }catch(err){setNotice("Unable to load attendance register: "+err.message);}
   finally{setReportBusy(false);}
  }
- const filteredAttendanceReport=attendanceReportRows.filter(x=>{
-  const q=reportSearch.trim().toLowerCase();if(!q)return true;
-  const e=x.employee||{};return [e.employee_code,e.full_name,e.staff_category,x.shift_code,x.duty_classification].some(v=>String(v||"").toLowerCase().includes(q));
+ const attendanceRegisterDates=(()=>{const out=[];const d=new Date(reportFrom+"T00:00:00"),last=new Date(reportTo+"T00:00:00");for(;d<=last;d.setDate(d.getDate()+1))out.push(isoLocalDate(d));return out;})();
+ const filteredAttendanceRegister=employees.filter(e=>{const q=reportSearch.trim().toLowerCase();return !q||[e.employee_code,e.full_name,e.staff_category].some(v=>String(v||"").toLowerCase().includes(q));}).map(e=>{
+  const records=attendanceReportRows.filter(x=>x.employee_id===e.id&&x.attendance_status==="present");
+  const byDate={};for(const x of records){(byDate[x.business_date]??=[]).push(x);}
+  const duties=Object.values(byDate).reduce((n,list)=>n+list.length,0);
+  const presentDays=Object.keys(byDate).length;
+  return {...e,byDate,duties,presentDays,extra:records.filter(x=>x.duty_classification==="extra_duty").length};
  });
- const attendanceSummary=Object.values(filteredAttendanceReport.reduce((acc,x)=>{
-  const e=x.employee||{},id=x.employee_id;acc[id]??={employee_code:e.employee_code||"—",full_name:e.full_name||"Unknown employee",staff_category:e.staff_category||"—",days:new Set(),shifts:0,extra:0};
-  if(x.attendance_status==="present"){acc[id].days.add(x.business_date);acc[id].shifts++;if(x.duty_classification==="extra_duty")acc[id].extra++;}
-  return acc;
- },{})).map(x=>({...x,days:x.days.size}));
  function downloadAttendanceReport(){
-  if(!filteredAttendanceReport.length){setNotice("No attendance records to download.");return;}
-  const detail=filteredAttendanceReport.map((x,i)=>({ "S.No.":i+1,"Date":x.business_date,"Shift":x.shift_code,"Employee Code":x.employee?.employee_code||"","Employee Name":x.employee?.full_name||"","Job":x.employee?.staff_category||"","Attendance":x.attendance_status,"Duty Type":x.duty_classification==="extra_duty"?"Extra Duty":"Actual Duty"}));
-  const summary=attendanceSummary.map((x,i)=>({"S.No.":i+1,"Employee Code":x.employee_code,"Employee Name":x.full_name,"Job":x.staff_category,"Present Days":x.days,"Present Shifts":x.shifts,"Extra Duty Shifts":x.extra}));
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(detail),"Attendance Details");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(summary),"Employee Summary");
-  XLSX.writeFile(wb,"Packing-Plant-Attendance-"+reportFrom+"-to-"+reportTo+".xlsx");
+  if(!filteredAttendanceRegister.length){setNotice("No employee records to download.");return;}
+  const dateHeaders=attendanceRegisterDates.map(d=>d.slice(8,10)+"-"+d.slice(5,7));
+  const rows=filteredAttendanceRegister.map((e,i)=>{const row={"S.No.":i+1,"Employee Code":e.employee_code||"","Employee Name":e.full_name||"","Designation":e.staff_category||""};attendanceRegisterDates.forEach((d,j)=>{const shifts=(e.byDate[d]||[]).map(x=>x.shift_code).sort();row[dateHeaders[j]]=shifts.join(" + ");});row["Present Days"]=e.presentDays;row["Total Duties"]=e.duties;return row;});
+  const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[{wch:7},{wch:16},{wch:30},{wch:24},...dateHeaders.map(()=>({wch:7})),{wch:13},{wch:13}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Attendance Register");
+  XLSX.writeFile(wb,"Packing-Plant-Attendance-Register-"+reportFrom+"-to-"+reportTo+".xlsx");
  }
  async function readEmployeeFile(file){
   if(!file)return;setNotice("");setEmployeeFile(file.name);setEmployeeImportRows([]);
@@ -488,9 +493,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    <label>To Date<input type="date" value={reportTo} max={today()} onChange={e=>setReportTo(e.target.value)}/></label>
    <label>Shift<select value={reportShift} onChange={e=>setReportShift(e.target.value)}><option value="ALL">All Shifts</option><option value="A">A Shift</option><option value="B">B Shift</option><option value="C">C Shift</option><option value="G">G Shift</option></select></label>
   </div><div className="button-row"><button className="primary" onClick={loadAttendanceReport} disabled={reportBusy}>{reportBusy?"Loading…":"Generate Report"}</button><button className="secondary" onClick={()=>{setReportFrom(today().slice(0,7)+"-01");setReportTo(today());setReportShift("ALL");setReportSearch("");setAttendanceReportRows([]);setReportLoaded(false);}}>Clear Filters</button>{reportLoaded&&<button className="secondary" onClick={downloadAttendanceReport}>Download Excel</button>}</div></div>
-  {reportLoaded&&<><div className="stats pp-truck-stats"><div className="stat"><span>Attendance entries</span><b>{filteredAttendanceReport.length}</b></div><div className="stat"><span>Employees</span><b>{attendanceSummary.length}</b></div><div className="stat"><span>Present days (employee total)</span><b>{attendanceSummary.reduce((n,x)=>n+x.days,0)}</b></div><div className="stat"><span>Extra duty shifts</span><b>{attendanceSummary.reduce((n,x)=>n+x.extra,0)}</b></div></div>
-  <div className="panel"><h3>Attendance details</h3><div className="mapping-grid pp-register-grid"><label>Search employee code / name / job<input value={reportSearch} onChange={e=>setReportSearch(e.target.value)} placeholder="Search attendance records…"/></label></div><div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Date</th><th>Shift</th><th>Employee Code</th><th>Employee Name</th><th>Job</th><th>Attendance</th><th>Duty Type</th></tr></thead><tbody>{filteredAttendanceReport.map((x,i)=><tr key={x.id}><td>{i+1}</td><td>{x.business_date}</td><td>{x.shift_code}</td><td>{x.employee?.employee_code||"—"}</td><td>{x.employee?.full_name||"—"}</td><td>{x.employee?.staff_category||"—"}</td><td>{x.attendance_status==="present"?"Present":x.attendance_status}</td><td>{x.duty_classification==="extra_duty"?"Extra Duty":"Actual Duty"}</td></tr>)}{!filteredAttendanceReport.length&&<tr><td colSpan="8" className="muted">No attendance records match these filters.</td></tr>}</tbody></table></div></div>
-  <div className="panel"><h3>Employee-wise summary</h3><div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Employee Code</th><th>Employee Name</th><th>Job</th><th>Present Days</th><th>Present Shifts</th><th>Extra Duty Shifts</th></tr></thead><tbody>{attendanceSummary.map((x,i)=><tr key={x.employee_code+"-"+i}><td>{i+1}</td><td>{x.employee_code}</td><td>{x.full_name}</td><td>{x.staff_category}</td><td>{x.days}</td><td>{x.shifts}</td><td>{x.extra}</td></tr>)}{!attendanceSummary.length&&<tr><td colSpan="7" className="muted">No employee summary available.</td></tr>}</tbody></table></div></div></>}
+  {reportLoaded&&<><div className="stats pp-truck-stats"><div className="stat"><span>Employees in register</span><b>{filteredAttendanceRegister.length}</b></div><div className="stat"><span>Total duty entries</span><b>{filteredAttendanceRegister.reduce((n,x)=>n+x.duties,0)}</b></div><div className="stat"><span>Present employee-days</span><b>{filteredAttendanceRegister.reduce((n,x)=>n+x.presentDays,0)}</b></div><div className="stat"><span>Extra duty shifts</span><b>{filteredAttendanceRegister.reduce((n,x)=>n+x.extra,0)}</b></div></div>
+  <div className="panel"><h3>Standard Attendance Register</h3><p className="footnote">One employee per row. Each date column shows the shift attended (A, B, C or G). If an employee worked two shifts on the same date, both shifts are shown in that date cell. A dash indicates no attendance entry.</p><div className="mapping-grid pp-register-grid"><label>Search employee code / name / designation<input value={reportSearch} onChange={e=>setReportSearch(e.target.value)} placeholder="Search employee code, name or designation…"/></label></div><div className="table-scroll"><table className="attendance-register-table"><thead><tr><th>S.No.</th><th>Employee Code</th><th>Employee Name</th><th>Designation</th>{attendanceRegisterDates.map(d=><th key={d}>{d.slice(8,10)}-{d.slice(5,7)}</th>)}<th>Present Days</th><th>Total Duties</th></tr></thead><tbody>{filteredAttendanceRegister.map((e,i)=><tr key={e.id}><td>{i+1}</td><td>{e.employee_code||"—"}</td><td>{e.full_name}</td><td>{e.staff_category||"—"}</td>{attendanceRegisterDates.map(d=>{const shifts=(e.byDate[d]||[]).map(x=>x.shift_code).sort();return <td key={d}>{shifts.length?shifts.join(" + "):"—"}</td>;})}<td>{e.presentDays}</td><td>{e.duties}</td></tr>)}{!filteredAttendanceRegister.length&&<tr><td colSpan={6+attendanceRegisterDates.length} className="muted">No employees match this search.</td></tr>}</tbody></table></div></div></>}
   </>}
   {section==="Employee Master"&&<><div className="panel"><h3>Add employee · Admin only</h3>{admin?<><div className="mapping-grid pp-register-grid"><label>Employee code (optional)<input value={code} onChange={e=>setCode(e.target.value)}/></label><label>Employee name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Staff category<select value={category} onChange={e=>setCategory(e.target.value)}>{STAFF.map(x=><option key={x}>{x}</option>)}</select></label></div><button className="primary" onClick={addEmployee}>Add employee</button></>:<p className="muted">Administrator access is required to maintain employees.</p>}</div><div className="panel"><h3>Active employees</h3><div className="table-scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Category</th></tr></thead><tbody>{employees.map(x=><tr key={x.id}><td>{x.employee_code||"—"}</td><td>{x.full_name}</td><td>{x.staff_category}</td></tr>)}</tbody></table></div></div></>}
   {section==="Holiday Master"&&<><div className="panel"><h3>Add holiday / festival · Admin only</h3>{admin?<><div className="mapping-grid pp-register-grid"><label>Holiday date<input type="date" value={holidayDate} onChange={e=>setHolidayDate(e.target.value)}/></label><label>Description<input value={holidayText} onChange={e=>setHolidayText(e.target.value)} placeholder="Holiday / festival name"/></label></div><button className="primary" onClick={addHoliday}>Save holiday</button></>:<p className="muted">Administrator access is required to maintain holidays.</p>}</div><div className="panel"><h3>Holiday for selected date</h3><p>{holiday?holiday.description:"No active holiday is recorded for this date."}</p></div></>}
