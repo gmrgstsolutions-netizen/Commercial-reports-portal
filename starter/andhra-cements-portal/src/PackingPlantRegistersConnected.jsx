@@ -290,15 +290,21 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   if(!reportFrom||!reportTo||reportFrom>reportTo){setNotice("Select a valid From Date and To Date.");return;}
   setReportBusy(true);setNotice("");
   try{
-   const [{data:att,error:attError},{data:staff,error:staffError}]=await Promise.all([
-    supabase.from("pp_attendance").select("id,employee_id,business_date,shift_code,attendance_status,duty_classification").gte("business_date",reportFrom).lte("business_date",reportTo).order("business_date",{ascending:true}).order("shift_code",{ascending:true}),
+   const [{data:staff,error:staffError}]=await Promise.all([
     supabase.from("pp_employees").select("id,employee_code,full_name,staff_category").eq("is_active",true).order("full_name",{ascending:true})
    ]);
-   if(attError)throw attError;if(staffError)throw staffError;
+   if(staffError)throw staffError;
+   // PostgREST applies a row limit (commonly 1,000). Fetch every attendance page so later dates are not silently omitted from the register.
+   const att=[];const pageSize=1000;let offset=0;
+   while(true){
+    const {data,error}=await supabase.from("pp_attendance").select("id,employee_id,business_date,shift_code,attendance_status,duty_classification").gte("business_date",reportFrom).lte("business_date",reportTo).order("business_date",{ascending:true}).order("employee_id",{ascending:true}).order("shift_code",{ascending:true}).range(offset,offset+pageSize-1);
+    if(error)throw error;
+    const page=data||[];att.push(...page);if(page.length<pageSize)break;offset+=pageSize;
+   }
    const staffById=new Map((staff||[]).map(e=>[e.id,e]));
    setEmployees(staff||[]);
-   setAttendanceReportRows((att||[]).map(x=>({...x,employee:staffById.get(x.employee_id)||null})));
-   setReportLoaded(true);setNotice("Attendance register generated for "+(staff||[]).length+" employees and "+(att||[]).length+" duty entries.");
+   setAttendanceReportRows(att.map(x=>({...x,employee:staffById.get(x.employee_id)||null})));
+   setReportLoaded(true);setNotice("Attendance register generated for "+(staff||[]).length+" employees and "+att.length+" duty entries.");
   }catch(err){setNotice("Unable to load attendance register: "+err.message);}
   finally{setReportBusy(false);}
  }
