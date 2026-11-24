@@ -27,7 +27,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
  const [rows,setRows]=useState([]),[vehicle,setVehicle]=useState(""),[product,setProduct]=useState("PPC"),[qty,setQty]=useState(""),[remarks,setRemarks]=useState("");
  const [employees,setEmployees]=useState([]),[name,setName]=useState(""),[code,setCode]=useState(""),[category,setCategory]=useState(STAFF[0]);
  const [employeeFile,setEmployeeFile]=useState(""),[employeeImportRows,setEmployeeImportRows]=useState([]),[employeeImportBusy,setEmployeeImportBusy]=useState(false);
- const [attendance,setAttendance]=useState({}),[attendanceRows,setAttendanceRows]=useState([]),[employeeSearch,setEmployeeSearch]=useState(""),[holiday,setHoliday]=useState(null),[holidayDate,setHolidayDate]=useState(""),[holidayText,setHolidayText]=useState("");
+ const [attendance,setAttendance]=useState({}),[attendanceRows,setAttendanceRows]=useState([]),[employeeSearch,setEmployeeSearch]=useState(""),[attendanceFile,setAttendanceFile]=useState(""),[attendanceImportRows,setAttendanceImportRows]=useState([]),[attendanceImportBusy,setAttendanceImportBusy]=useState(false),[holiday,setHoliday]=useState(null),[holidayDate,setHolidayDate]=useState(""),[holidayText,setHolidayText]=useState("");
  const [reasons,setReasons]=useState([]),[reasonCategory,setReasonCategory]=useState(CATS[0]),[reason,setReason]=useState(""),[editReason,setEditReason]=useState(null);
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[notice,setNotice]=useState("");
  const [reportFrom,setReportFrom]=useState(today().slice(0,7)+"-01"),[reportTo,setReportTo]=useState(today()),[reportShift,setReportShift]=useState("ALL"),[reportSearch,setReportSearch]=useState(""),[attendanceReportRows,setAttendanceReportRows]=useState([]),[reportBusy,setReportBusy]=useState(false),[reportLoaded,setReportLoaded]=useState(false);
@@ -336,6 +336,61 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    setEmployeeImportRows(parsed);setNotice("Preview ready: "+parsed.length+" employee records. Existing matching ID numbers will be updated; new IDs will be added.");
   }catch(err){setNotice("Excel file not accepted: "+err.message);}
  }
+
+ async function readAttendanceFile(file){
+  if(!file)return;setAttendanceFile(file.name);setAttendanceImportRows([]);setNotice("");
+  try{
+   const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
+   const ws=wb.Sheets[wb.SheetNames[0]],grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
+   if(!grid.length)throw new Error("The selected Excel sheet is empty.");
+   const norm=v=>String(v??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+   const headers=grid[0].map(norm),find=(...names)=>headers.findIndex(h=>names.includes(h));
+   const ix={date:find("date","attendancedate"),code:find("idno","idnumber","employeeid","employeecode"),name:find("nameofworkmen","nameofworkman","name","employeename"),shift:find("shift","shiftcode")};
+   const missing=Object.entries(ix).filter(([,v])=>v<0).map(([k])=>({date:"Date",code:"ID No",name:"Name of the workmen",shift:"Shift"}[k]));
+   if(missing.length)throw new Error("Missing column heading(s): "+missing.join(", "));
+   const employeeMap=new Map(employees.filter(e=>e.is_active).map(e=>[String(e.employee_code||"").trim().toLowerCase(),e]));
+   const parseDate=v=>{
+    const s=String(v??"").trim();let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+    m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if(m)return m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
+    if(/^\d+(\.\d+)?$/.test(s)){const n=Number(s);if(n>20000&&n<80000){const d=new Date(Date.UTC(1899,11,30)+n*86400000);return d.toISOString().slice(0,10);}}
+    return "";
+   };
+   const parsed=grid.slice(1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>{
+    const rawShift=String(row[ix.shift]??"").trim().toUpperCase().replace(/\s+/g,"");
+    const shiftCode=rawShift.replace(/SHIFT$/,""),employeeCode=String(row[ix.code]??"").trim(),employee=employeeMap.get(employeeCode.toLowerCase());
+    const businessDate=parseDate(row[ix.date]),workmenName=String(row[ix.name]??"").trim(),issues=[];
+    if(!businessDate)issues.push("Invalid date");if(!employeeCode)issues.push("Missing ID No");if(!employee)issues.push("ID No not found in active Employee Master");if(!workmenName)issues.push("Missing workmen name");
+    if(!["A","B","C","G"].includes(shiftCode))issues.push("Shift must be A, B, C or G");if(businessDate&&businessDate>today())issues.push("Future attendance date");
+    return {business_date:businessDate,employee_code:employeeCode,full_name:employee?.full_name||workmenName,source_name:workmenName,employee_id:employee?.id||null,shift_code:shiftCode,source_row:i+2,issues};
+   });
+   if(!parsed.length)throw new Error("No attendance rows found below the headings.");
+   const seen=new Set();for(const r of parsed){const k=[r.business_date,r.shift_code,r.employee_code.toLowerCase()].join("|");if(seen.has(k))r.issues.push("Duplicate employee/date/shift row in Excel");seen.add(k);}
+   setAttendanceImportRows(parsed);const bad=parsed.filter(x=>x.issues.length).length;
+   setNotice("Attendance preview ready: "+parsed.length+" rows; "+(parsed.length-bad)+" valid and "+bad+" need correction.");
+  }catch(err){setNotice("Attendance file not accepted: "+err.message);}
+ }
+ async function uploadAttendanceFile(){
+  if(!canEdit||!attendanceImportRows.length)return;
+  if(attendanceImportRows.some(x=>x.issues.length)){setNotice("Correct all invalid rows before uploading.");return;}
+  setAttendanceImportBusy(true);setNotice("");
+  try{
+   const keys=[...new Set(attendanceImportRows.map(x=>x.business_date+"|"+x.shift_code))];
+   if(!admin)for(const key of keys){const [d,s]=key.split("|");const {count,error}=await supabase.from("pp_attendance").select("id",{count:"exact",head:true}).eq("business_date",d).eq("shift_code",s);if(error)throw error;if(count>0)throw new Error("Attendance already exists for "+d+" / Shift "+s+". Only an administrator can update it.");}
+   const dates=[...new Set(attendanceImportRows.map(x=>x.business_date))],employeeIds=[...new Set(attendanceImportRows.map(x=>x.employee_id))];
+   const [holidayResult,priorResult]=await Promise.all([
+    supabase.from("pp_holidays").select("holiday_date").in("holiday_date",dates).eq("is_active",true),
+    supabase.from("pp_attendance").select("employee_id,business_date").in("employee_id",employeeIds).eq("attendance_status","present").eq("duty_classification","actual_duty").in("business_date",dates.map(d=>d.slice(0,7)+"-01"))
+   ]);
+   if(holidayResult.error)throw holidayResult.error;if(priorResult.error)throw priorResult.error;
+   const holidaySet=new Set((holidayResult.data||[]).map(x=>x.holiday_date));
+   const payload=attendanceImportRows.map(r=>{const monthStart=r.business_date.slice(0,7)+"-01",priorDays=new Set((priorResult.data||[]).filter(x=>x.employee_id===r.employee_id&&x.business_date>=monthStart&&x.business_date<r.business_date).map(x=>x.business_date)).size;return {business_date:r.business_date,shift_code:r.shift_code,employee_id:r.employee_id,attendance_status:"present",duty_classification:holidaySet.has(r.business_date)&&priorDays>=7?"extra_duty":"actual_duty",created_by:session.user.id};});
+   const {error}=await supabase.from("pp_attendance").upsert(payload,{onConflict:"business_date,shift_code,employee_id"});if(error)throw error;
+   setNotice("Attendance uploaded successfully: "+payload.length+" present records across "+keys.length+" date/shift combinations. Employees not listed were not entered as present.");
+   setAttendanceImportRows([]);setAttendanceFile("");await load();
+  }catch(err){setNotice("Attendance upload failed: "+err.message);}finally{setAttendanceImportBusy(false);}
+ }
  async function uploadEmployees(){
   if(!admin||!employeeImportRows.length)return;setEmployeeImportBusy(true);setNotice("");
   try{
@@ -395,6 +450,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)} disabled={!admin&&attendanceRows.length>0}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00</option><option value="G">G Shift · 08:00–17:00</option></select></label>
    </div>
    {attendanceRows.length>0&&!admin&&<div className="alert">Submitted attendance is locked. Only an administrator can modify this shift's attendance.</div>}
+   <div className="panel" style={{marginTop:"12px"}}><h3>Attendance Excel Upload</h3><p className="footnote">Required headings: Date, ID No, Name of the workmen, Shift. Each listed employee is marked Present. Employees not listed are not added as present. ID No must match an active Employee Master record.</p><label>Choose attendance Excel file (.xlsx / .xls)<input type="file" accept=".xlsx,.xls" disabled={!canEdit||attendanceImportBusy} onChange={e=>readAttendanceFile(e.target.files?.[0]||null)}/></label>{attendanceFile&&<p className="footnote">Selected file: {attendanceFile}</p>}{attendanceImportRows.length>0&&<><div className="stats pp-truck-stats"><div className="stat"><span>Total rows</span><b>{attendanceImportRows.length}</b></div><div className="stat"><span>Valid rows</span><b>{attendanceImportRows.filter(x=>!x.issues.length).length}</b></div><div className="stat"><span>Invalid rows</span><b>{attendanceImportRows.filter(x=>x.issues.length).length}</b></div></div><div className="table-scroll"><table><thead><tr><th>Excel Row</th><th>Date</th><th>ID No</th><th>Workmen Name</th><th>Matched Employee</th><th>Shift</th><th>Status</th></tr></thead><tbody>{attendanceImportRows.map(x=><tr key={x.source_row}><td>{x.source_row}</td><td>{x.business_date||"—"}</td><td>{x.employee_code}</td><td>{x.source_name}</td><td>{x.full_name}</td><td>{x.shift_code}</td><td>{x.issues.length?x.issues.join("; "):"Ready · Present"}</td></tr>)}</tbody></table></div><div className="button-row"><button className="primary" onClick={uploadAttendanceFile} disabled={!canEdit||attendanceImportBusy||attendanceImportRows.some(x=>x.issues.length)}>{attendanceImportBusy?"Uploading…":"Confirm & Upload Attendance"}</button><button className="secondary" onClick={()=>{setAttendanceImportRows([]);setAttendanceFile("");}} disabled={attendanceImportBusy}>Clear File</button></div></>}</div>
+
    <div className="mapping-grid pp-register-grid">
     <label>Search by employee code or name<input value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Type employee code or employee name…" disabled={!canEdit||(!admin&&attendanceRows.length>0)}/></label>
    </div>
