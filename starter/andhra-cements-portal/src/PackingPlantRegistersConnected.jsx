@@ -134,7 +134,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     const considered=new Set();bagCandidates.forEach(c=>c.lines.forEach(d=>considered.add(d.invoice_no)));bulkCandidates.forEach(c=>c.candidates.forEach(d=>considered.add(d.invoice_no)));
     const unmatched=dispatch.filter(d=>!considered.has(d.invoice_no));
     setPackerBulkRows(bulkRows);setPackerUnmatchedDispatch(unmatched);setPackerUnmatchedPackslips(unmatchedPackslips);setPackerReportRows(report);setPackerReportLoaded(true);
-    setNotice("Packer report generated: "+report.length+" bag-loading sessions and "+bulkRows.length+" bulk weighbridge loads. "+bulkRows.filter(x=>x.dispatchStatus==="Matched").length+" bulk loads matched; "+unmatched.length+" dispatch invoice lines remain unmatched.");
+    setNotice("Packer report generated: "+report.length+" bag-loading sessions and "+bulkRows.length+" bulk weighbridge loads. "+bulkRows.filter(x=>x.dispatchStatus==="Matched").length+" bulk loads matched; "+unmatched.length+" dispatch invoice lines remain unmatched; "+unmatchedPackslips.length+" packslips have no linked dispatch invoice.");
    }catch(err){setNotice("Unable to generate Packer Report: "+err.message);}finally{setPackerReportBusy(false);}
   }
   const packerSummary=["P1","P2","P3"].map(code=>{
