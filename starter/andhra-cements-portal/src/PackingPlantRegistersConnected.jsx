@@ -362,11 +362,16 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    };
    const employeeMap=new Map(employees.filter(e=>e.is_active&&e.employee_code!=null).map(e=>[normalizeEmployeeId(e.employee_code),e]));
    const parseDate=v=>{
-    const s=String(v??"").trim();let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-    if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
-    m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-    if(m)return m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
-    if(/^\d+(\.\d+)?$/.test(s)){const n=Number(s);if(n>20000&&n<80000){const d=new Date(Date.UTC(1899,11,30)+n*86400000);return d.toISOString().slice(0,10);}}
+    if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.toISOString().slice(0,10);
+    const s=String(v??"").trim();if(!s)return "";
+    const valid=(y,mo,d)=>{const dt=new Date(Date.UTC(y,mo-1,d));return dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d?dt.toISOString().slice(0,10):"";};
+    let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?:[ T].*)?$/);
+    if(m){let y=Number(m[3]);if(y<100)y+=y>=50?1900:2000;return valid(y,Number(m[2]),Number(m[1]));}
+    m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T].*)?$/);
+    if(m)return valid(Number(m[1]),Number(m[2]),Number(m[3]));
+    m=s.match(/^(\d{1,2})[-\s]([A-Za-z]{3,})[-\s,]+(\d{2}|\d{4})$/);
+    if(m){const mo={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12}[m[2].slice(0,3).toLowerCase()];let y=Number(m[3]);if(y<100)y+=y>=50?1900:2000;if(mo)return valid(y,mo,Number(m[1]));}
+    if(/^\d+(\.\d+)?$/.test(s)){const n=Number(s);if(n>20000&&n<80000){const d=new Date(Date.UTC(1899,11,30)+Math.floor(n)*86400000);return d.toISOString().slice(0,10);}}
     return "";
    };
    const parsed=grid.slice(headerRow+1).filter(row=>row.some(v=>String(v??"").trim())).map((row,i)=>{
@@ -378,7 +383,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     return {business_date:businessDate,employee_code:employeeCode,full_name:employee?.full_name||workmenName,source_name:workmenName,employee_id:employee?.id||null,shift_code:shiftCode,source_row:headerRow+i+2,issues};
    });
    if(!parsed.length)throw new Error("No attendance rows found below the headings.");
-   const seen=new Set();for(const r of parsed){const k=[r.business_date,r.shift_code,r.employee_code.toLowerCase()].join("|");if(seen.has(k))r.issues.push("Duplicate employee/date/shift row in Excel");seen.add(k);}
+   const seen=new Set();for(const r of parsed){if(!r.business_date||!r.employee_id||!r.shift_code)continue;const k=[r.business_date,r.shift_code,r.employee_id].join("|");if(seen.has(k))r.issues.push("Duplicate employee/date/shift row in Excel");seen.add(k);}
    setAttendanceImportRows(parsed);const bad=parsed.filter(x=>x.issues.length).length;
    setNotice("Attendance preview ready: "+parsed.length+" rows; "+(parsed.length-bad)+" valid and "+bad+" need correction.");
   }catch(err){setNotice("Attendance file not accepted: "+err.message);}
