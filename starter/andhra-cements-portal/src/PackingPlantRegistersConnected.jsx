@@ -420,8 +420,17 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    if(holidayResult.error)throw holidayResult.error;if(priorResult.error)throw priorResult.error;
    const holidaySet=new Set((holidayResult.data||[]).map(x=>x.holiday_date));
    const payload=attendanceImportRows.map(r=>{const monthStart=r.business_date.slice(0,7)+"-01",priorDays=new Set((priorResult.data||[]).filter(x=>x.employee_id===r.employee_id&&x.business_date>=monthStart&&x.business_date<r.business_date).map(x=>x.business_date)).size;return {business_date:r.business_date,shift_code:r.shift_code,employee_id:r.employee_id,attendance_status:"present",duty_classification:holidaySet.has(r.business_date)&&priorDays>=7?"extra_duty":"actual_duty",created_by:session.user.id};});
-   const {error}=await supabase.from("pp_attendance").upsert(payload,{onConflict:"business_date,shift_code,employee_id"});if(error)throw error;
-   setNotice("Attendance uploaded successfully: "+payload.length+" present records across "+keys.length+" date/shift combinations. Employees not listed were not entered as present.");
+   // Upload in small batches so a large annual workbook is not sent as one oversized request.
+   const batchSize=500;let uploaded=0;
+   for(let i=0;i<payload.length;i+=batchSize){
+    const batch=payload.slice(i,i+batchSize);
+    const {data,error}=await supabase.from("pp_attendance").upsert(batch,{onConflict:"business_date,shift_code,employee_id"}).select("id");
+    if(error)throw new Error("Attendance upload stopped after "+uploaded+" of "+payload.length+" rows: "+error.message);
+    if((data||[]).length!==batch.length)throw new Error("Attendance upload verification mismatch in batch starting at row "+(i+1)+": expected "+batch.length+" rows but confirmed "+(data||[]).length+".");
+    uploaded+=(data||[]).length;
+    setNotice("Uploading attendance: "+uploaded+" / "+payload.length+" records completed...");
+   }
+   setNotice("Attendance uploaded and verified successfully: "+uploaded+" present records across "+keys.length+" date/shift combinations. Employees not listed were not entered as present.");
    setAttendanceImportRows([]);setAttendanceFile("");await load();
   }catch(err){setNotice("Attendance upload failed: "+err.message);}finally{setAttendanceImportBusy(false);}
  }
