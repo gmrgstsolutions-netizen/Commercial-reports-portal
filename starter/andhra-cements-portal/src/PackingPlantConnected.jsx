@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 const PACKERS = [{id:"P1",name:"Packer 1",tph:120},{id:"P2",name:"Packer 2",tph:120},{id:"P3",name:"Packer 3",tph:240}];
+const RUNNING_AREAS = [...PACKERS,{id:"BULK",name:"Bulk Loading",tph:null}];
 const CATEGORIES = ["Mechanical","Electrical","Instrumentation","Operational","Planned"];
 const today = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const shiftStart = code => ({A:360,B:840,C:1320}[code]);
@@ -27,7 +28,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   const canEdit=["admin","uploader"].includes(profile?.role);
   const start=shiftStart(shift), end=start+480;
 
-  const timeline=useMemo(()=>PACKERS.map(p=>{
+  const timeline=useMemo(()=>RUNNING_AREAS.map(p=>{
     const own=intervals.filter(x=>x.packer_code===p.id).map(x=>({...x,startMinute:Number(x.start_minute),endMinute:Number(x.end_minute)})).sort((a,b)=>a.startMinute-b.startMinute);
     let previous=0,running=0,overlap=false; const gaps=[];
     for(const x of own){
@@ -38,8 +39,8 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     }
     if(previous<480)gaps.push({start:previous,end:480});
     const qty=Number(production[p.id]?.PPC||0)+Number(production[p.id]?.OPC||0);
-    const expected=running/60*p.tph;
-    return {...p,own,gaps,running,stoppage:gaps.reduce((s,g)=>s+g.end-g.start,0),qty,expected,util:expected?qty/expected*100:null,overlap};
+    const expected=p.tph?running/60*p.tph:0;
+    return {...p,own,gaps,running,stoppage:gaps.reduce((s,g)=>s+g.end-g.start,0),qty,expected,util:p.tph&&expected?qty/expected*100:null,overlap};
   }),[intervals,production]);
   const totals=timeline.reduce((a,p)=>({qty:a.qty+p.qty,expected:a.expected+p.expected}),{qty:0,expected:0});
 
@@ -70,7 +71,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   }
   useEffect(()=>{load();},[date,shift]);
   const updateQty=(packer,product,value)=>setProduction(v=>({...v,[packer]:{...(v[packer]||{PPC:"",OPC:""}),[product]:value}}));
-  const addInterval=packer=>setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:"PPC",start_minute:0,end_minute:480}]);
+  const addInterval=packer=>setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:packer==="BULK"?"BULK":"PPC",start_minute:0,end_minute:480}]);
   const updateInterval=(id,field,value)=>setIntervals(v=>v.map(x=>x.id===id?{...x,[field]:value}:x));
   const removeInterval=id=>setIntervals(v=>v.filter(x=>x.id!==id));
 
@@ -120,13 +121,13 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     </div>{shift==="C"&&<div className="alert">C Shift is displayed as {date} 22:00–24:00 and the following date 00:00–06:00. Both parts belong to this business date.</div>}</div>
     <div className="stats"><div className="stat"><span>Total production (MT)</span><b>{totals.qty.toFixed(2)}</b></div><div className="stat"><span>Expected production (MT)</span><b>{totals.expected.toFixed(2)}</b></div><div className="stat"><span>Plant utilisation</span><b>{totals.expected?(totals.qty/totals.expected*100).toFixed(1)+"%":"N/A"}</b></div></div>
     {timeline.map(p=><div className="panel" key={p.id}>
-      <div className="panel-title"><h3>{p.name} · {p.tph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
-      <div className="mapping-grid pp-production-grid"><label>PPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.PPC||""} onChange={e=>updateQty(p.id,"PPC",e.target.value)} disabled={!canEdit}/></label><label>OPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.OPC||""} onChange={e=>updateQty(p.id,"OPC",e.target.value)} disabled={!canEdit}/></label><div className="pp-kpi"><span>Combined utilisation</span><b>{p.util===null?"N/A":p.util.toFixed(1)+"%"}</b></div></div>
+      <div className="panel-title"><h3>{p.tph?`${p.name} · ${p.tph} TPH`:p.name}</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
+      {p.tph&&<div className="mapping-grid pp-production-grid"><label>PPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.PPC||""} onChange={e=>updateQty(p.id,"PPC",e.target.value)} disabled={!canEdit}/></label><label>OPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.OPC||""} onChange={e=>updateQty(p.id,"OPC",e.target.value)} disabled={!canEdit}/></label><div className="pp-kpi"><span>Combined utilisation</span><b>{p.util===null?"N/A":p.util.toFixed(1)+"%"}</b></div></div>}
       <div className="panel-title pp-subhead"><h3>Running intervals</h3><button className="secondary" type="button" disabled={!canEdit} onClick={()=>addInterval(p.id)}>+ Add interval</button></div>
       <div className="table-scroll"><table><thead><tr><th>Product</th><th>Start</th><th>Stop</th><th>Duration</th><th></th></tr></thead><tbody>
-      {p.own.map(x=><tr key={x.id}><td><select value={x.product_code} disabled={!canEdit} onChange={e=>updateInterval(x.id,"product_code",e.target.value)}><option>PPC</option><option>OPC</option></select></td><td><input type="time" value={fromRelative(x.start_minute,shift)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value,shift))}/></td><td><input type="time" value={fromRelative(x.end_minute%480===0&&x.end_minute!==0?x.end_minute: x.end_minute,shift)} disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value,shift);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
+      {p.own.map(x=><tr key={x.id}><td>{p.tph?<select value={x.product_code} disabled={!canEdit} onChange={e=>updateInterval(x.id,"product_code",e.target.value)}><option>PPC</option><option>OPC</option></select>:<span>Bulk Loading</span>}</td><td><input type="time" value={fromRelative(x.start_minute,shift)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value,shift))}/></td><td><input type="time" value={fromRelative(x.end_minute%480===0&&x.end_minute!==0?x.end_minute: x.end_minute,shift)} disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value,shift);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
       {!p.own.length&&<tr><td colSpan="5" className="muted">No running intervals entered.</td></tr>}</tbody></table></div>
-      <div className="pp-summary-grid"><div><span>Running time</span><b>{fmtH(p.running)} h</b></div><div><span>Derived stoppage</span><b>{fmtH(p.stoppage)} h</b></div><div><span>Expected MT</span><b>{p.expected.toFixed(2)}</b></div></div>
+      <div className="pp-summary-grid"><div><span>Running time</span><b>{fmtH(p.running)} h</b></div><div><span>Derived stoppage</span><b>{fmtH(p.stoppage)} h</b></div><div><span>Expected MT</span><b>{p.tph?p.expected.toFixed(2):"—"}</b></div></div>
       <h4 className="pp-subtitle">Stoppage classification</h4>
       {p.gaps.map(g=>{const key=p.id+"-"+g.start+"-"+g.end;const v=gapChoices[key]||{};return <div className="pp-gap-row" key={key}><b>{fromRelative(g.start,shift)}–{fromRelative(g.end,shift)}</b><span>{fmtH(g.end-g.start)} h</span><select disabled={!canEdit} value={v.category||""} onChange={e=>{const r=reasons.find(x=>x.category===e.target.value);setGapChoices(s=>({...s,[key]:{category:e.target.value,reason_id:null,reason:r?.reason||""}}));}}><option value="">Select category</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select><select disabled={!canEdit||!v.category} value={v.reason_id||""} onChange={e=>{const r=reasons.find(x=>x.id===e.target.value);setGapChoices(s=>({...s,[key]:{...v,reason_id:r?.id||null,reason:r?.reason||""}}));}}><option value="">Select reason</option>{reasons.filter(r=>r.category===v.category).map(r=><option key={r.id} value={r.id}>{r.reason}</option>)}</select></div>;})}
     </div>)}
