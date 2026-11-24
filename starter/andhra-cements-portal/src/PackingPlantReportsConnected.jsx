@@ -5,15 +5,15 @@ const REPORTS = [
   { key: "shift_production", label: "Shift-wise Packing Production", note: "Actual recorded PPC/OPC production and running hours by business date, shift, packer and product." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Shift-wise production, number of active packers and truck-loading quantity." },
   { key: "production_dispatch", label: "Production vs Dispatch", note: "Daily product-wise production compared with cement and clinker dispatch. Difference = production minus dispatch." },
-  { key: "dispatch_reconciliation", label: "Packing Dispatch Reconciliation", note: "Vehicle and date matching between dispatch invoice quantities and completed weighbridge net weights. Differences require review; this is not an invoice-level weighment allocation." },
+  { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
   { key: "raw_material_receipts", label: "Weighbridge Raw Material Receipts", note: "External-type inward weighments grouped by date, material and supplier. Cement/CLN dispatch weighments and outgoing scrap are excluded; missing shifts remain unclassified." },
   { key: "monthly_performance", label: "Monthly / FY Packing Performance", note: "Monthly production compared with cement and clinker dispatch for the selected date range. FY range can be selected as 1 April to 31 March." }
 ];
 
 const LABELS = {
   business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product",
-  production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
-  truck_loading_mt: "Truck Loading (MT)", product: "Product", dispatch_mt: "Dispatch (MT)",
+  dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",\n  production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
+  truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
   difference_mt: "Difference (MT)", dispatch_date: "Dispatch Date", vehicle_no: "Vehicle Number",
   invoice_numbers: "Invoice Numbers", invoice_lines: "Invoice Lines", weighbridge_mt: "Weighbridge (MT)",
   weighment_records: "Weighment Records", match_status: "Match Status", receipt_date: "Receipt Date",
@@ -21,7 +21,7 @@ const LABELS = {
   net_mt: "Net Weight (MT)", unclassified_shift_records: "Unclassified Shift Records", month: "Month"
 };
 
-const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records"]);
+const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty"]);
 
 function display(value, key) {
   if (value === null || value === undefined || value === "") return "—";
@@ -91,6 +91,6 @@ export default function PackingPlantReportsConnected({ supabase }) {
         {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
       </tbody></table></div> : <p className="muted">No records found for the selected dates. Production reports will populate after Packing Plant shift entries are saved.</p>}
     </div>}
-    <div className="alert warning">Important: vehicle/date reconciliation is an indicative comparison, not proof that a particular weighment belongs to a particular invoice. Review differences before taking action. Raw Material Receipts includes only External-type inward movements; Cement/CLN weighments are treated as finished-product dispatch, and Outgoing scrap is excluded. These are receipts, not consumption.</div>
+    {reportKey === "raw_material_receipts" && <div className="alert warning">Raw Material Receipts includes only External-type inward movements; Cement/CLN weighments and outgoing scrap are excluded.</div>}
   </section>;
 }
