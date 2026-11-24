@@ -337,7 +337,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   }catch(err){setNotice("Excel file not accepted: "+err.message);}
  }
 
- async async function readAttendanceFile(file){
+ async function readAttendanceFile(file){
   if(!file)return;setAttendanceFile(file.name);setAttendanceImportRows([]);setNotice("");
   try{
    const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
