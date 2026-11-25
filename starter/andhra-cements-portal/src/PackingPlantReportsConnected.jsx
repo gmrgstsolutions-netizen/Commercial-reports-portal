@@ -14,7 +14,7 @@ const REPORTS = [
 
 const LABELS = {
   business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product",
-  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Start Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)",
+  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Restart Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)",
   dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
   production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
   truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
@@ -43,6 +43,18 @@ export default function PackingPlantReportsConnected({ supabase }) {
 
   const selected = REPORTS.find(r => r.key === reportKey) || REPORTS[0];
   const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const stoppageGroups = useMemo(() => {
+    if (reportKey !== "daily_stoppage") return [];
+    const map = new Map();
+    for (const row of rows) {
+      const key = [row.business_date, row.asset_name].join("|");
+      if (!map.has(key)) map.set(key, { date: row.business_date, asset: row.asset_name, rows: [] });
+      map.get(key).rows.push(row);
+    }
+    const order = {"Packer 1":1,"Bulk Loading":2,"Packer 2":3,"Packer 3":4};
+    return [...map.values()].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
+  }, [reportKey, rows]);
+
   const columns = useMemo(() => {
     const preferred = Object.keys(rows[0] || {});
     return preferred;
@@ -67,16 +79,37 @@ export default function PackingPlantReportsConnected({ supabase }) {
 
   function downloadExcel() {
     if (!rows.length) return;
-    const totalKeys = columns.filter(k => NUMERIC.has(k) && k !== "active_packers" && k !== "stop_number");
-    const totalRow = Object.fromEntries(columns.map((key, i) => [key,
-      i === 0 ? "Grand Total" : totalKeys.includes(key) ? rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0) : ""
-    ]));
-    const exportRows = [...rows, totalRow].map(row => Object.fromEntries(columns.map(key => [LABELS[key] || key.replace(/_/g, " "), row[key] ?? ""])));
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    ws["!cols"] = columns.map(key => ({ wch: Math.max(14, Math.min(30, (LABELS[key] || key).length + 4)) }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, reportKey === "daily_stoppage" ? "Daily Stoppage" : "Packing Report");
-    XLSX.writeFile(wb, (reportKey === "daily_stoppage" ? "Daily_Stoppage_Report_" : "Packing_Plant_Report_") + fromDate + "_to_" + toDate + ".xlsx");
+    if (reportKey === "daily_stoppage") {
+      const aoa = [["ANDHRA CEMENTS LIMITED – DACHEPALLI"],["STOPPAGE ANALYSIS REPORT"],["Period: " + fromDate + " to " + toDate],[]];
+      const merges = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}}];
+      for (const group of stoppageGroups) {
+        aoa.push([group.asset + "  |  " + group.date]);
+        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:7}});
+        aoa.push(["Stop No.","Shift","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned",""]);
+        const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
+        if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.shift_code??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",""]));
+        else aoa.push(["—","","","","No stoppage recorded","","",""]);
+        const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
+        const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
+        const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
+        aoa.push(["Daily Total","","","","","","Running Hours",running]);
+        aoa.push(["","","","","","","Stoppage Hours",stopped]);
+        aoa.push(["","","","","","","Production (MT)",production]);
+        aoa.push([]);
+      }
+      const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!merges"]=merges;
+      ws["!cols"]=[{wch:11},{wch:9},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:16}];
+      XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
+    } else {
+      const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
+      const totalRow=Object.fromEntries(columns.map((key,i)=>[key,i===0?"Grand Total":totalKeys.includes(key)?rows.reduce((sum,row)=>sum+(Number(row[key])||0),0):""]));
+      const exportRows=[...rows,totalRow].map(row=>Object.fromEntries(columns.map(key=>[LABELS[key]||key.replace(/_/g," "),row[key]??""])));
+      const ws=XLSX.utils.json_to_sheet(exportRows);
+      ws["!cols"]=columns.map(key=>({wch:Math.max(14,Math.min(30,(LABELS[key]||key).length+4))}));
+      XLSX.utils.book_append_sheet(wb,ws,"Packing Report");
+    }
+    XLSX.writeFile(wb,(reportKey==="daily_stoppage"?"Stoppage_Analysis_Report_":"Packing_Plant_Report_")+fromDate+"_to_"+toDate+".xlsx");
   }
 
   useEffect(() => { loadReport(); }, [reportKey]);
@@ -104,7 +137,22 @@ export default function PackingPlantReportsConnected({ supabase }) {
     {busy && <div className="panel"><p>Loading report from Supabase…</p></div>}
     {!busy && data && <div className="panel">
       <div className="panel-title"><h3>{selected.label}</h3><span className="pill">{rows.length.toLocaleString("en-IN")} rows · MT where applicable</span></div>
-      {rows.length ? <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
+      {rows.length ? reportKey === "daily_stoppage" ? <div className="stoppage-report">
+        <div className="stoppage-report-heading"><strong>ANDHRA CEMENTS LIMITED – DACHEPALLI</strong><b>STOPPAGE ANALYSIS REPORT</b><span>Period: {fromDate} to {toDate}</span></div>
+        {stoppageGroups.map((group,gi)=>{
+          const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
+          const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
+          const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
+          const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
+          return <div className="stoppage-asset-section" key={gi}>
+            <h4>{group.asset}<span>{group.date}</span></h4>
+            <div className="table-scroll"><table><thead><tr><th>Stop No.</th><th>Shift</th><th>Stop Time</th><th>Restart Time</th><th>Duration (Hours)</th><th>Reason for Stoppage</th><th>Planned / Unplanned</th></tr></thead>
+              <tbody>{details.length?details.map((row,i)=><tr key={i}><td className="num">{display(row.stop_number,"stop_number")}</td><td>{display(row.shift_code)}</td><td>{display(row.stop_time)}</td><td>{display(row.start_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td>{display(row.reason)}</td><td>{display(row.stoppage_classification)}</td></tr>):<tr><td colSpan="7" className="muted">No stoppage recorded</td></tr>}</tbody>
+            </table></div>
+            <div className="stoppage-summary"><span>Running Hours <b>{running.toFixed(2)}</b></span><span>Stoppage Hours <b>{stopped.toFixed(2)}</b></span><span>Production (MT) <b>{production.toLocaleString("en-IN",{maximumFractionDigits:2})}</b></span></div>
+          </div>;
+        })}
+      </div> : <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
         {rows.map((row, i) => <tr key={i}>{columns.map(k => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{display(row[k], k)}</td>)}</tr>)}
         {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
       </tbody></table></div> : <p className="muted">No records found for the selected dates. Enter running intervals and classify stoppage periods under Packing Plant Operations, then save the shift. Bulk Loading running and stoppage hours are included; Bulk Loading production is now recorded separately for OPC and PPC, with 120 TPH rated capacity.</p>}
