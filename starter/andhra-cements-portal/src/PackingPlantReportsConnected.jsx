@@ -14,7 +14,7 @@ const REPORTS = [
 
 const LABELS = {
   business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product",
-  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Restart Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)",
+  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Restart Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)", target_tph: "Target TPH", adjustment_status: "Adjustment Status",
   dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
   production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
   truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
@@ -25,7 +25,7 @@ const LABELS = {
   net_mt: "Net Weight (MT)", unclassified_shift_records: "Unclassified Shift Records", month: "Month"
 };
 
-const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty","stop_number","duration_hours","day_stoppage_hours","day_running_hours","day_production_mt"]);
+const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty","stop_number","duration_hours","day_stoppage_hours","day_running_hours","day_production_mt","target_tph"]);
 
 function display(value, key) {
   if (value === null || value === undefined || value === "") return "—";
@@ -85,11 +85,11 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const merges = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}}];
       for (const group of stoppageGroups) {
         aoa.push([group.asset + "  |  " + group.date]);
-        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:7}});
-        aoa.push(["Stop No.","Shift","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned",""]);
+        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:8}});
+        aoa.push(["Stop No.","Shift","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned","Target TPH","Adjustment Status"]);
         const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
-        if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.shift_code??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",""]));
-        else aoa.push(["—","","","","No stoppage recorded","","",""]);
+        if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.shift_code??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",x.target_tph??"",x.adjustment_status??""]));
+        else aoa.push(["—","","","","No stoppage recorded","","","",""]);
         const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
         const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
         const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
@@ -99,7 +99,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         aoa.push([]);
       }
       const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!merges"]=merges;
-      ws["!cols"]=[{wch:11},{wch:9},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:16}];
+      ws["!cols"]=[{wch:11},{wch:9},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:12},{wch:48}];
       XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
     } else {
       const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
