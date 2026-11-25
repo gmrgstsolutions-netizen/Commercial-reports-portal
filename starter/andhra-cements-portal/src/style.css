@@ -366,3 +366,24 @@ body{
 .receipt-delete-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:5px 9px;border:1px solid #efb4b4;border-radius:6px;background:#fff5f5;color:#b42318;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}
 .receipt-delete-btn:hover:not(:disabled){background:#fee4e2;border-color:#dc6b63}
 .receipt-delete-btn:disabled{opacity:.55;cursor:wait}
+
+
+/* Make full-day running-hour time selectors clearly visible and usable */
+.pp-prototype .pp-time-select{
+  display:block !important;
+  width:112px !important;
+  min-width:112px !important;
+  min-height:38px !important;
+  padding:7px 25px 7px 9px !important;
+  appearance:auto !important;
+  -webkit-appearance:menulist !important;
+  background-color:#fff !important;
+  border:1px solid #8da8bf !important;
+  border-radius:7px !important;
+  color:#173653 !important;
+  cursor:pointer !important;
+  font-size:13px !important;
+}
+.pp-prototype .pp-time-select:disabled{opacity:.65;cursor:not-allowed}
+.pp-prototype .pp-add-interval{font-weight:700;min-height:36px}
+.pp-prototype .table-scroll td{vertical-align:middle}
