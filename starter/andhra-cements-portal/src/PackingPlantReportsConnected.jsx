@@ -104,7 +104,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!merges"]=merges;
       ws["!cols"]=[{wch:10},{wch:13},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:19},{wch:18},{wch:19}];
       XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
-else {
+    } else {
       const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
       const totalRow=Object.fromEntries(columns.map((key,i)=>[key,i===0?"Grand Total":totalKeys.includes(key)?rows.reduce((sum,row)=>sum+(Number(row[key])||0),0):""]));
       const exportRows=[...rows,totalRow].map(row=>Object.fromEntries(columns.map(key=>[LABELS[key]||key.replace(/_/g," "),row[key]??""])));
