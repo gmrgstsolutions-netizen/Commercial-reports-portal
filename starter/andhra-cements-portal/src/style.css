@@ -310,3 +310,26 @@ footer{
 @media(max-width:760px){
   body{background:#edf3f8}
 }
+
+
+/* Stronger visible page canvas: blue-grey workspace with white report panels */
+html,body,#root{
+  min-height:100%;
+  background:#e6edf4 !important;
+}
+body{
+  background:#e6edf4 !important;
+}
+.app-shell{
+  min-height:100vh;
+  background:#e6edf4 !important;
+}
+.main{
+  background:#eaf0f6 !important;
+}
+.login-wrap{
+  background:linear-gradient(135deg,#e2ebf3 0%,#f1f5f9 52%,#dce7f0 100%) !important;
+}
+.panel,.stat,.login-card{
+  background:#ffffff !important;
+}
