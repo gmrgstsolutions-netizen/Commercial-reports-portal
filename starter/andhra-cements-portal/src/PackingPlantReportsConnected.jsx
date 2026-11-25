@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const REPORTS = [
   { key: "shift_production", label: "Shift-wise Packing Production", note: "Actual recorded PPC/OPC production and running hours by business date, shift, packer and product." },
@@ -64,6 +65,20 @@ export default function PackingPlantReportsConnected({ supabase }) {
     } finally { setBusy(false); }
   }
 
+  function downloadExcel() {
+    if (!rows.length) return;
+    const totalKeys = columns.filter(k => NUMERIC.has(k) && k !== "active_packers" && k !== "stop_number");
+    const totalRow = Object.fromEntries(columns.map((key, i) => [key,
+      i === 0 ? "Grand Total" : totalKeys.includes(key) ? rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0) : ""
+    ]));
+    const exportRows = [...rows, totalRow].map(row => Object.fromEntries(columns.map(key => [LABELS[key] || key.replace(/_/g, " "), row[key] ?? ""])));
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    ws["!cols"] = columns.map(key => ({ wch: Math.max(14, Math.min(30, (LABELS[key] || key).length + 4)) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, reportKey === "daily_stoppage" ? "Daily Stoppage" : "Packing Report");
+    XLSX.writeFile(wb, (reportKey === "daily_stoppage" ? "Daily_Stoppage_Report_" : "Packing_Plant_Report_") + fromDate + "_to_" + toDate + ".xlsx");
+  }
+
   useEffect(() => { loadReport(); }, [reportKey]);
 
   const totals = useMemo(() => {
@@ -77,7 +92,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       <div className="date-tools">
         <label>From Date<input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} /></label>
         <label>To Date<input type="date" value={toDate} onChange={e => setToDate(e.target.value)} /></label>
-        <button className="secondary" onClick={loadReport} disabled={busy}><RefreshCw size={16}/>Refresh</button>
+        <button className="secondary" onClick={loadReport} disabled={busy}><RefreshCw size={16}/>Refresh</button>{!busy && rows.length > 0 && <button className="secondary" onClick={downloadExcel}>Download Excel</button>}
       </div>
     </div>
     <div className="panel">
