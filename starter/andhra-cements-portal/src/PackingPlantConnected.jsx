@@ -15,7 +15,7 @@ const uid = () => globalThis.crypto?.randomUUID?.() || "pp-"+Date.now()+"-"+Math
 
 export default function PackingPlantConnected({supabase,session,profile,shiftInchargeName=""}) {
   const [date,setDate]=useState(today());
-  const shift = "D";
+  const DAILY_RECORD_CODE = "D";
   const [selectedArea,setSelectedArea]=useState("P1");
   const [shiftId,setShiftId]=useState(null);
   const [intervals,setIntervals]=useState([]);
@@ -45,7 +45,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   async function load() {
     setLoading(true); setMessage("");
     try {
-      const {data:sh,error:se}=await supabase.from("pp_shifts").select("id,status").eq("business_date",date).eq("shift_code",shift).maybeSingle();
+      const {data:sh,error:se}=await supabase.from("pp_shifts").select("id,status").eq("business_date",date).eq("shift_code",DAILY_RECORD_CODE).maybeSingle();
       if(se)throw se;
       setShiftId(sh?.id||null);
       if(!sh){setIntervals([]);setOriginalIntervalIds([]);setStaff({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:shiftInchargeName});setGapChoices({});}
@@ -81,7 +81,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     try{
       let id=shiftId;
       if(!id){
-        const {data,error}=await supabase.from("pp_shifts").upsert({business_date:date,shift_code:shift,created_by:session.user.id},{onConflict:"business_date,shift_code"}).select("id").single();
+        const {data,error}=await supabase.from("pp_shifts").upsert({business_date:date,shift_code:DAILY_RECORD_CODE,created_by:session.user.id},{onConflict:"business_date,shift_code"}).select("id").single();
         if(error)throw error;id=data.id;setShiftId(id);
       }
       const activeIds=intervals.map(x=>x.id).filter(id=>originalIntervalIds.includes(id));
@@ -101,7 +101,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
 
   return <section className="pp-prototype pp-compact">
     <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Production &amp; Running Hours</h1><p className="muted">Running hours, stoppages and staff. Production is sourced from dispatch data.</p></div><span className="pill">{canEdit?"Uploader access":"Read-only access"}</span></div>
-    <div className="panel pp-control-panel"><div className="mapping-grid pp-shift-controls">
+    <div className="panel pp-control-panel"><div className="mapping-grid pp-daily-controls">
       <label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
       <label>Operating period<input value="00:00–24:00 (Full day · 24 hours)" readOnly /></label>
       <label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · Target range {p.minTph}–{p.maxTph} TPH</option>)}</select></label>
