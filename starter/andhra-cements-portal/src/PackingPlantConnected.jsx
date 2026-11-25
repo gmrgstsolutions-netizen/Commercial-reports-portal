@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-const PACKERS = [{id:"P1",name:"Packer 1",tph:98.5},{id:"P2",name:"Packer 2",tph:98.5},{id:"P3",name:"Packer 3",tph:135}];
-const RUNNING_AREAS = [...PACKERS,{id:"BULK",name:"Bulk Loading",tph:117.5}];
+const PACKERS = [{id:"P1",name:"Packer 1",minTph:95,maxTph:102},{id:"P2",name:"Packer 2",minTph:95,maxTph:102},{id:"P3",name:"Packer 3",minTph:130,maxTph:140}];
+const RUNNING_AREAS = [...PACKERS,{id:"BULK",name:"Bulk Loading",minTph:115,maxTph:120}];
 const CATEGORIES = ["Mechanical","Electrical","Instrumentation","Operational","Planned"];
 const today = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const shiftStart = code => ({A:360,B:840,C:1320}[code]);
@@ -103,7 +103,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     <div className="panel pp-control-panel"><div className="mapping-grid pp-shift-controls">
       <label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
       <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00 next day</option></select><small className="pp-control-hint">C shift is assigned to its starting date.</small></label>
-      <label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · Target {p.tph} TPH</option>)}</select></label>
+      <label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · Target range {p.minTph}–{p.maxTph} TPH</option>)}</select></label>
     </div>{shift==="C"&&<div className="alert">C Shift covers {date} 22:00–24:00 and the following date 00:00–06:00.</div>}</div>
     {timeline.filter(p=>p.id===selectedArea).map(p=><div className="panel" key={p.id}>
       <div className="panel-title"><h3>{p.name} · {p.tph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
