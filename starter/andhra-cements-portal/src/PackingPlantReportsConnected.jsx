@@ -3,10 +3,10 @@ import { RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const REPORTS = [
-  { key: "shift_production", label: "Shift-wise Packing Production", note: "Actual recorded PPC/OPC production and running hours by business date, shift, packer and product." },
-  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Packer 1, Bulk Loading, Packer 2 and Packer 3 running hours, stoppage periods, reasons, Planned/Unplanned classification and daily totals. Bulk Loading production is recorded for OPC and PPC at its rated capacity of 120 TPH." },
-  { key: "daily_summary", label: "Daily Packing Summary", note: "Shift-wise production, number of active packers and truck-loading quantity." },
-  { key: "production_dispatch", label: "Production vs Dispatch", note: "Daily product-wise production compared with cement and clinker dispatch. Difference = production minus dispatch." },
+  { key: "shift_production", label: "Shift-wise Packing Production", note: "Dispatch-derived production and adjusted running hours by business date, shift, packer and product." },
+  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Dispatch-derived production with running and stoppage intervals adjusted to the agreed TPH targets; original stoppage reasons and Planned/Unplanned classification are retained." },
+  { key: "daily_summary", label: "Daily Packing Summary", note: "Dispatch-derived production, running hours and truck-loading quantity." },
+  { key: "production_dispatch", label: "Production vs Dispatch", note: "Production quantities are sourced directly from uploaded dispatch data; no manual production quantities are used." },
   { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
   { key: "raw_material_receipts", label: "Weighbridge Raw Material Receipts", note: "External-type inward weighments grouped by date, material and supplier. Cement/CLN dispatch weighments and outgoing scrap are excluded; missing shifts remain unclassified." },
   { key: "monthly_performance", label: "Monthly / FY Packing Performance", note: "Monthly production compared with cement and clinker dispatch for the selected date range. FY range can be selected as 1 April to 31 March." }
