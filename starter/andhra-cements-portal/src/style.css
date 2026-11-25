@@ -241,3 +241,72 @@ footer{font-size:10px;padding:12px 0 10px}
   .pp-compact .pp-gap-row select,
   .pp-compact .pp-gap-row input{grid-column:span 2}
 }
+
+
+/* Smart corporate background theme */
+:root{
+  background:#edf3f8;
+  color:#1b3045;
+}
+html,body{
+  background:#edf3f8;
+}
+body{
+  background:
+    radial-gradient(ellipse at 88% 0%,rgba(205,224,241,.42) 0%,rgba(237,243,248,0) 36%),
+    linear-gradient(135deg,#f2f6fa 0%,#eaf1f7 52%,#f3f6fa 100%);
+  background-attachment:fixed;
+}
+.app-shell{
+  background:transparent;
+}
+.sidebar{
+  background:linear-gradient(180deg,#102b45 0%,#173b5b 55%,#10283f 100%);
+  box-shadow:5px 0 24px rgba(20,48,72,.09);
+}
+.main{
+  background:transparent;
+}
+.topbar{
+  border-bottom-color:#d8e3ed;
+}
+.stat,.panel,.login-card{
+  border-color:#dce6ef;
+  box-shadow:0 4px 16px rgba(30,62,91,.055);
+}
+.panel{
+  background:rgba(255,255,255,.96);
+}
+.stat{
+  background:rgba(255,255,255,.97);
+}
+th{
+  background:#eaf0f5;
+}
+tbody tr:not(.total):nth-child(even) td{
+  background:#f8fafc;
+}
+tbody tr:not(.total):hover td{
+  background:#edf5fb;
+}
+.dropzone{
+  background:linear-gradient(135deg,#f8fbfd,#eef4f9);
+  border-color:#b8cbdc;
+}
+.primary{
+  background:linear-gradient(135deg,#174b73,#23658e);
+  box-shadow:0 2px 6px rgba(23,75,115,.14);
+}
+.primary:hover:not(:disabled){
+  filter:brightness(1.06);
+}
+.secondary{
+  background:#e8f0f6;
+  border:1px solid #d8e4ee;
+}
+footer{
+  border-top-color:#d8e3ed;
+}
+@media(max-width:760px){
+  body{background:#edf3f8}
+}
