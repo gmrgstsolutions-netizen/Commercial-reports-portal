@@ -86,7 +86,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const merges = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}}];
       for (const group of stoppageGroups) {
         aoa.push([group.asset + "  |  " + group.date]);
-        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:8}});
+        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:7}});
         aoa.push(["Stop No.","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned","Target TPH","Adjustment Status"]);
         const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
         if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",x.target_tph??"",x.adjustment_status??""]));
@@ -100,7 +100,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         aoa.push([]);
       }
       const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!merges"]=merges;
-      ws["!cols"]=[{wch:11},{wch:9},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:12},{wch:48}];
+      ws["!cols"]=[{wch:11},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:12},{wch:48}];
       XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
       if (runningRows.length) {
         const runExport = runningRows.map(x => ({
