@@ -247,7 +247,7 @@ function App() {
 
   if (!supabase) return <SetupScreen/>;
   if (!session) return <div className="login-wrap"><form className="login-card" onSubmit={signIn}>
-    <div className="brand-mark">AC</div><p className="eyebrow">ANDHRA CEMENTS</p><h1>Commercial Reports</h1><p className="muted">Secure reporting portal</p>
+    <div className="brand-mark">AC</div><p className="eyebrow">ANDHRA CEMENTS</p><h1>Commercial Reports Andhra Cements</h1><p className="muted">Secure reporting portal</p>
     <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username"/></label>
     <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/></label>
     <label>Report Type<select className="report-select login-select" value={reportType} onChange={e=>setReportType(e.target.value)} required><option value="">Select Report Type</option><option>Dispatch Reports</option><option>Weighbridge Reports</option><option>Packing Plant Reports</option></select></label>
@@ -257,7 +257,7 @@ function App() {
   </form></div>;
 
   return <div className="app-shell">
-    <aside className="sidebar"><div className="side-brand"><div className="brand-mark small">AC</div><div><b>ANDHRA CEMENTS</b><small>Commercial Reports</small></div></div>
+    <aside className="sidebar"><div className="side-brand"><div className="brand-mark small">AC</div><div><b>COMMERCIAL REPORTS</b><small>ANDHRA CEMENTS</small></div></div>
       <div className="nav-label">SELECTED REPORT TYPE</div>
       <div className="selected-report-type">{reportType}</div>
       {reportType === "Dispatch Reports" && canUploadDispatch && <button className={tab==="Dispatch Upload"?"nav active":"nav"} onClick={()=>setTab("Dispatch Upload")}><UploadCloud size={17}/>Upload Dispatch Data</button>}
@@ -349,7 +349,7 @@ function App() {
         </section>}
         {tab==="Upload History" && <section><div className="section-head"><div><span className="eyebrow">AUDIT TRAIL</span><h1>Packing Plant Upload History</h1></div><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div><div className="panel"><p className="muted">The current Packing Plant schema does not yet contain a dedicated import-history table. Existing receipt records are listed below as recorded transactions.</p><div className="table-scroll"><table><thead><tr><th>Receipt date</th><th>Bag type</th><th>Quantity</th><th>Reference</th><th>Remarks</th><th>Created at</th></tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table></div></div></section>}
       </>}
-      <footer>Commercial Reports – Andhra Cements <span>Secure portal · {busy?"Refreshing…":"Connected"}</span></footer>
+      <footer>Commercial Reports Andhra Cements <span>Secure portal · {busy?"Refreshing…":"Connected"}</span></footer>
     </main>
   </div>;
 }
