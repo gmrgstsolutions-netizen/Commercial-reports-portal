@@ -17,10 +17,6 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   const [shift,setShift]=useState("A");
   const [selectedArea,setSelectedArea]=useState("P1");
   const [shiftId,setShiftId]=useState(null);
-  const [production,setProduction]=useState({});
-  const [cPeriod,setCPeriod]=useState("C_22_24");
-  const activePeriod=shift==="C"?cPeriod:"FULL";
-  const getQty=(area,product,period=activePeriod)=>period==="FULL"?(production[area]?.[product]||""):(production[area]?.[period]?.[product]||"");
   const [intervals,setIntervals]=useState([]);
   const [originalIntervalIds,setOriginalIntervalIds]=useState([]);
   const [staff,setStaff]=useState({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:shiftInchargeName});
@@ -42,11 +38,8 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       previous=Math.max(previous,x.endMinute);
     }
     if(previous<480)gaps.push({start:previous,end:480});
-    const qty=shift==="C"?Number(production[p.id]?.PPC||0)+Number(production[p.id]?.OPC||0)+["C_22_24","C_00_06"].reduce((s,k)=>s+Number(production[p.id]?.[k]?.PPC||0)+Number(production[p.id]?.[k]?.OPC||0),0):Number(production[p.id]?.PPC||0)+Number(production[p.id]?.OPC||0);
-    const expected=p.tph?running/60*p.tph:0;
-    return {...p,own,gaps,running,stoppage:gaps.reduce((s,g)=>s+g.end-g.start,0),qty,expected,util:p.tph&&expected?qty/expected*100:null,overlap};
-  }),[intervals,production,shift]);
-  const selectedTimeline=timeline.find(p=>p.id===selectedArea)||timeline[0];
+    return {...p,own,gaps,running,stoppage:gaps.reduce((s,g)=>s+g.end-g.start,0),overlap};
+  }),[intervals]);
 
   async function load() {
     setLoading(true); setMessage("");
@@ -54,17 +47,15 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       const {data:sh,error:se}=await supabase.from("pp_shifts").select("id,status").eq("business_date",date).eq("shift_code",shift).maybeSingle();
       if(se)throw se;
       setShiftId(sh?.id||null);
-      if(!sh){setProduction({});setIntervals([]);setOriginalIntervalIds([]);setStaff({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:shiftInchargeName});setGapChoices({});}
+      if(!sh){setIntervals([]);setOriginalIntervalIds([]);setStaff({packing_plc_operator:"",truck_loading_operator:"",shift_incharge:shiftInchargeName});setGapChoices({});}
       else {
-        const [pr,iv,st,sp]=await Promise.all([
-          supabase.from("pp_production").select("*").eq("shift_id",sh.id),
+        const [iv,st,sp]=await Promise.all([
           supabase.from("pp_running_intervals").select("*").eq("shift_id",sh.id).order("start_minute"),
           supabase.from("pp_shift_staff").select("*").eq("shift_id",sh.id).maybeSingle(),
           supabase.from("pp_stoppages").select("*").eq("shift_id",sh.id)
         ]);
-        for(const x of [pr,iv,st,sp])if(x.error)throw x.error;
-        const p={}; for(const row of pr.data||[]){p[row.packer_code]??={PPC:"",OPC:""};const period=row.period_code||"FULL";if(period==="FULL")p[row.packer_code][row.product_code]=String(row.quantity_mt);else{p[row.packer_code][period]??={PPC:"",OPC:""};p[row.packer_code][period][row.product_code]=String(row.quantity_mt);}}
-        setProduction(p);const normalizedIntervals=(iv.data||[]).map(x=>{const entered=["PPC","OPC"].filter(k=>p[x.packer_code]?.[k]!==undefined&&p[x.packer_code]?.[k]!==""&&Number(p[x.packer_code][k])>=0);return entered.length===1?{...x,product_code:entered[0]}:x;});setIntervals(normalizedIntervals);setOriginalIntervalIds((iv.data||[]).map(x=>x.id));
+        for(const x of [iv,st,sp])if(x.error)throw x.error;
+        setIntervals(iv.data||[]);setOriginalIntervalIds((iv.data||[]).map(x=>x.id));
         setStaff({packing_plc_operator:st.data?.packing_plc_operator||"",truck_loading_operator:st.data?.truck_loading_operator||"",shift_incharge:st.data?.shift_incharge||shiftInchargeName});
         const choices={};for(const row of sp.data||[]){const marker=" | Additional: ";const saved=String(row.reason_snapshot||"");const split=saved.indexOf(marker);choices[row.packer_code+"-"+row.start_minute+"-"+row.end_minute]={category:row.category,reason:split>=0?saved.slice(0,split):saved,additionalReason:split>=0?saved.slice(split+marker.length):"",reason_id:row.reason_id};}setGapChoices(choices);
       }
@@ -74,8 +65,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     finally{setLoading(false);}
   }
   useEffect(()=>{load();},[date,shift]);
-  const updateQty=(packer,product,value)=>{setProduction(v=>{const current={...(v[packer]||{})};if(activePeriod==="FULL")current[product]=value;else current[activePeriod]={...(current[activePeriod]||{PPC:"",OPC:""}),[product]:value};return {...v,[packer]:current};});if(packer!=="BULK"){const entered=["PPC","OPC"].filter(k=>k===product?value!==""&&Number(value)>=0:getQty(packer,k)!==""&&Number(getQty(packer,k))>=0);if(entered.length===1)setIntervals(v=>v.map(x=>x.packer_code===packer?{...x,product_code:entered[0]}:x));}};
-  const addInterval=packer=>{const entered=["PPC","OPC"].filter(k=>getQty(packer,k)!==""&&Number(getQty(packer,k))>=0);setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:entered.length===1?entered[0]:"PPC",start_minute:0,end_minute:480}]);};
+  const addInterval=packer=>setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:"PPC",start_minute:0,end_minute:480}]);
   const updateInterval=(id,field,value)=>setIntervals(v=>v.map(x=>x.id===id?{...x,[field]:value}:x));
   const removeInterval=id=>setIntervals(v=>v.filter(x=>x.id!==id));
 
@@ -86,7 +76,6 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       const unclassified=p.gaps.find(g=>!gapChoices[p.id+"-"+g.start+"-"+g.end]?.category);
       if(unclassified){setMessage(p.name+" stoppage from "+fromRelative(unclassified.start,shift)+" to "+fromRelative(unclassified.end,shift)+" needs a category before saving.");return;} const withoutReason=p.gaps.find(g=>!String(gapChoices[p.id+"-"+g.start+"-"+g.end]?.reason||"").trim()); if(withoutReason){setMessage(p.name+" stoppage from "+fromRelative(withoutReason.start,shift)+" to "+fromRelative(withoutReason.end,shift)+" needs a predefined or manually entered reason before saving.");return;}
     }
-    for(const p of RUNNING_AREAS)for(const period of (shift==="C"?["C_22_24","C_00_06"]:["FULL"]))for(const product of ["PPC","OPC"]){const v=getQty(p.id,product,period);if(v!==""&&(!Number.isFinite(Number(v))||Number(v)<0)){setMessage("Production quantity must be zero or a positive number.");return;}}
     setSaving(true);setMessage("");
     try{
       let id=shiftId;
@@ -94,13 +83,6 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
         const {data,error}=await supabase.from("pp_shifts").upsert({business_date:date,shift_code:shift,created_by:session.user.id},{onConflict:"business_date,shift_code"}).select("id").single();
         if(error)throw error;id=data.id;setShiftId(id);
       }
-      const prodRows=[];
-      for(const p of RUNNING_AREAS){if(shift==="C")for(const product of ["PPC","OPC"]){const legacy=production[p.id]?.[product];if(legacy!==undefined&&legacy!=="")prodRows.push({shift_id:id,packer_code:p.id,product_code:product,period_code:"FULL",quantity_mt:Number(legacy)});}for(const period of (shift==="C"?["C_22_24","C_00_06"]:["FULL"]))for(const product of ["PPC","OPC"]){const raw=getQty(p.id,product,period);if(raw!=="")prodRows.push({shift_id:id,packer_code:p.id,product_code:product,period_code:period,quantity_mt:Number(raw)});}}
-      const {data:oldProduction,error:oldProductionError}=await supabase.from("pp_production").select("id,packer_code,product_code,period_code").eq("shift_id",id);if(oldProductionError)throw oldProductionError;
-      const keepKeys=new Set(prodRows.map(x=>x.packer_code+"|"+x.product_code+"|"+x.period_code));
-      const stale=(oldProduction||[]).filter(x=>!keepKeys.has(x.packer_code+"|"+x.product_code+"|"+(x.period_code||"FULL"))).map(x=>x.id);
-      if(stale.length){const {error}=await supabase.from("pp_production").delete().in("id",stale);if(error)throw error;}
-      if(prodRows.length){const {error}=await supabase.from("pp_production").upsert(prodRows,{onConflict:"shift_id,packer_code,product_code,period_code"});if(error)throw error;}
       const activeIds=intervals.map(x=>x.id).filter(id=>originalIntervalIds.includes(id));
       const removed=originalIntervalIds.filter(id=>!activeIds.includes(id));
       if(removed.length){const {error}=await supabase.from("pp_running_intervals").delete().in("id",removed);if(error)throw error;}
@@ -117,21 +99,20 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   }
 
   return <section className="pp-prototype pp-compact">
-    <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Production &amp; Running Hours</h1><p className="muted">Shift production, running intervals, stoppages and staff</p></div><span className="pill">{canEdit?"Uploader access":"Read-only access"}</span></div>
+    <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Production &amp; Running Hours</h1><p className="muted">Running hours, stoppages and staff. Production is sourced from dispatch data.</p></div><span className="pill">{canEdit?"Uploader access":"Read-only access"}</span></div>
     <div className="panel pp-control-panel"><div className="mapping-grid pp-shift-controls">
       <label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
       <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00 next day</option></select><small className="pp-control-hint">C shift is assigned to its starting date.</small></label>
       <label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · {p.tph} TPH</option>)}</select></label>
     </div>{shift==="C"&&<div className="alert">C Shift covers {date} 22:00–24:00 and the following date 00:00–06:00.</div>}</div>
-    <div className="stats pp-compact-stats"><div className="stat"><span>{selectedTimeline.name} production (MT)</span><b>{selectedTimeline.qty.toFixed(2)}</b></div><div className="stat"><span>Expected production (MT)</span><b>{selectedTimeline.expected.toFixed(2)}</b></div><div className="stat"><span>Unit utilisation</span><b>{selectedTimeline.expected?(selectedTimeline.qty/selectedTimeline.expected*100).toFixed(1)+"%":"N/A"}</b></div></div>
     {timeline.filter(p=>p.id===selectedArea).map(p=><div className="panel" key={p.id}>
       <div className="panel-title"><h3>{p.name} · {p.tph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
-      <>{shift==="C"&&<>{(production[p.id]?.PPC||production[p.id]?.OPC)&&<div className="alert">Previously saved full-shift production is retained in the total. New entries can be recorded separately in the two time periods below.</div>}<div className="pp-period-tabs"><button type="button" className={cPeriod==="C_22_24"?"primary":"secondary"} onClick={()=>setCPeriod("C_22_24")}>22:00–24:00</button><button type="button" className={cPeriod==="C_00_06"?"primary":"secondary"} onClick={()=>setCPeriod("C_00_06")}>00:00–06:00 (Next day)</button></div></>}<div className="mapping-grid pp-production-grid"><label>PPC production (MT)<input type="number" min="0" step="0.01" value={getQty(p.id,"PPC")} onChange={e=>updateQty(p.id,"PPC",e.target.value)} disabled={!canEdit}/></label><label>OPC production (MT)<input type="number" min="0" step="0.01" value={getQty(p.id,"OPC")} onChange={e=>updateQty(p.id,"OPC",e.target.value)} disabled={!canEdit}/></label><div className="pp-kpi"><span>Combined utilisation (OPC + PPC)</span><b>{p.util===null?"N/A":p.util.toFixed(1)+"%"}</b></div></div></>
-      <div className="panel-title pp-subhead"><h3>Running intervals</h3><button className="secondary" type="button" disabled={!canEdit||!["PPC","OPC"].some(k=>getQty(p.id,k)!==""&&Number(getQty(p.id,k))>=0)} onClick={()=>addInterval(p.id)}>+ Add interval</button></div>
+      <div className="alert">Production quantity is taken automatically from cement dispatch records. Enter only running intervals and stoppage details.</div>
+      <div className="panel-title pp-subhead"><h3>Running intervals</h3><button className="secondary" type="button" disabled={!canEdit} onClick={()=>addInterval(p.id)}>+ Add interval</button></div>
       <div className="table-scroll"><table><thead><tr><th>Product</th><th>Start</th><th>Stop</th><th>Duration</th><th></th></tr></thead><tbody>
-      {p.own.map(x=><tr key={x.id}><td>{(()=>{const entered=["PPC","OPC"].filter(k=>getQty(p.id,k)!==""&&Number(getQty(p.id,k))>=0);return entered.length===1?<b>{entered[0]}</b>:<select value={x.product_code} disabled={!canEdit} onChange={e=>updateInterval(x.id,"product_code",e.target.value)}>{entered.map(k=><option key={k} value={k}>{k}</option>)}</select>;})()}</td><td><input type="time" value={fromRelative(x.start_minute,shift)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value,shift))}/></td><td><input type="time" value={fromRelative(x.end_minute%480===0&&x.end_minute!==0?x.end_minute: x.end_minute,shift)} disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value,shift);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
-      {!p.own.length&&<tr><td colSpan="5" className="muted">Enter PPC or OPC production first to add a matching running interval.</td></tr>}{p.own.length>0&&!["PPC","OPC"].some(k=>production[p.id]?.[k]!==undefined&&production[p.id]?.[k]!==""&&Number(production[p.id][k])>=0)&&<tr><td colSpan="5" className="muted">Enter production quantity to assign the running interval product.</td></tr>}</tbody></table></div>
-      <div className="pp-summary-grid"><div><span>Running time</span><b>{fmtH(p.running)} h</b></div><div><span>Derived stoppage</span><b>{fmtH(p.stoppage)} h</b></div><div><span>Expected MT</span><b>{p.expected.toFixed(2)}</b></div></div>
+      {p.own.map(x=><tr key={x.id}><td><select value={x.product_code} disabled={!canEdit} onChange={e=>updateInterval(x.id,"product_code",e.target.value)}><option value="OPC">OPC</option><option value="PPC">PPC</option></select></td><td><input type="time" value={fromRelative(x.start_minute,shift)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value,shift))}/></td><td><input type="time" value={fromRelative(x.end_minute%480===0&&x.end_minute!==0?x.end_minute: x.end_minute,shift)} disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value,shift);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
+      {!p.own.length&&<tr><td colSpan="5" className="muted">No running intervals recorded for this unit and shift.</td></tr>}</tbody></table></div>
+      <div className="pp-summary-grid"><div><span>Recorded running time</span><b>{fmtH(p.running)} h</b></div><div><span>Recorded stoppage time</span><b>{fmtH(p.stoppage)} h</b></div></div>
       <h4 className="pp-subtitle">Stoppage classification</h4>
       {p.gaps.map(g=>{const key=p.id+"-"+g.start+"-"+g.end;const v=gapChoices[key]||{};return <div className="pp-gap-row" key={key}><b>{fromRelative(g.start,shift)}–{fromRelative(g.end,shift)}</b><span>{fmtH(g.end-g.start)} h</span><select disabled={!canEdit} value={v.category||""} onChange={e=>{const r=reasons.find(x=>x.category===e.target.value);setGapChoices(s=>({...s,[key]:{category:e.target.value,reason_id:null,reason:r?.reason||""}}));}}><option value="">Select category</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select><select disabled={!canEdit||!v.category} value={v.reason_id||""} onChange={e=>{const r=reasons.find(x=>x.id===e.target.value);setGapChoices(s=>({...s,[key]:{...v,reason_id:r?.id||null,reason:r?.reason||"",additionalReason:v.additionalReason||""}}));}}><option value="">Select predefined reason (optional)</option>{reasons.filter(r=>r.category===v.category).map(r=><option key={r.id} value={r.id}>{r.reason}</option>)}</select><input type="text" disabled={!canEdit||!v.category} value={v.reason_id?(v.additionalReason||""):(v.reason||"")} placeholder={v.reason_id?"Additional reason (optional)":"Or enter stoppage reason manually"} onChange={e=>setGapChoices(s=>({...s,[key]:v.reason_id?{...v,additionalReason:e.target.value}:{...v,reason:e.target.value}}))}/></div>;})}
     </div>)}
