@@ -26,6 +26,10 @@ function App() {
   const [bagTypes, setBagTypes] = useState([]);
   const [stockStatement, setStockStatement] = useState(null);
   const [receipts, setReceipts] = useState([]);
+  const [receiptDraft, setReceiptDraft] = useState({bagTypeId:"",receiptDate:new Date().toLocaleDateString("en-CA"),quantity:"",sourceRef:"",remarks:""});
+  const [receiptSaving, setReceiptSaving] = useState(false);
+  const [receiptNotice, setReceiptNotice] = useState("");
+  const [receiptError, setReceiptError] = useState("");
   const [reportDate, setReportDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState(null);
@@ -124,6 +128,30 @@ function App() {
     finally { setBusy(false); }
   }
 
+
+  async function savePackingBagReceipt(e) {
+    e.preventDefault();
+    if (!isAdmin) { setReceiptError("Only an active administrator can enter packing bag receipts."); return; }
+    if (!receiptDraft.bagTypeId || !receiptDraft.receiptDate || !(Number(receiptDraft.quantity)>0)) {
+      setReceiptError("Select a bag type and receipt date, and enter a quantity greater than zero."); return;
+    }
+    setReceiptSaving(true); setReceiptError(""); setReceiptNotice("");
+    try {
+      const {data,error:saveError}=await supabase.rpc("save_packing_bag_receipts",{p_entries:[{
+        bag_type_id:receiptDraft.bagTypeId,
+        receipt_date:receiptDraft.receiptDate,
+        quantity:Number(receiptDraft.quantity),
+        source_ref:receiptDraft.sourceRef.trim()||null,
+        remarks:receiptDraft.remarks.trim()||null
+      }]});
+      if(saveError) throw saveError;
+      const inserted=Number(data?.inserted||0);
+      setReceiptNotice(inserted ? "Receipt saved successfully." : "This receipt reference already exists for the selected bag type and date. No duplicate was added.");
+      setReceiptDraft(v=>({...v,quantity:"",sourceRef:"",remarks:""}));
+      await loadData();
+    } catch(err) { setReceiptError(err.message||"Unable to save this receipt."); }
+    finally { setReceiptSaving(false); }
+  }
 
   async function loadDispatch(filterOverride = null) {
     if (!supabase || !session?.user) return;
@@ -329,7 +357,23 @@ function App() {
             <p className="footnote">{tab==="Monthly Summary"?"MTD means the first day of the selected month through the selected report date.":tab==="Financial Year Summary"?"YTD means 1 April through the selected report date (April–March financial year).":"OD means the selected report date. MTD and YTD values are provided by the existing database calculation."} A historical month-by-month ledger is not yet available from the verified report function, so this screen shows the available period totals rather than inventing historical rows.</p>
           </div>
         </section>}
-        {tab==="Packing Bags Receipts" && <section><div className="section-head"><div><span className="eyebrow">PACKING PLANT · RECEIPT REGISTER</span><h1>Packing Bags Receipts</h1><p className="muted">Receipt transactions recorded in the existing database.</p></div><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div><div className="panel"><div className="table-scroll"><table><thead><tr><th>Receipt Date</th><th>Bag Type</th><th className="num">Quantity</th><th>Source Reference</th><th>Remarks</th><th>Recorded At</th></tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table></div></div></section>}
+        {tab==="Packing Bags Receipts" && <section>
+          <div className="section-head"><div><span className="eyebrow">PACKING PLANT · RECEIPT REGISTER</span><h1>Packing Bags Receipts</h1><p className="muted">Enter new receipts and review the saved receipt register.</p></div><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div>
+          {isAdmin && <form className="panel receipt-entry-panel" onSubmit={savePackingBagReceipt}>
+            <div className="panel-title"><h3>New receipt entry</h3><span className="pill">Administrator only</span></div>
+            <div className="receipt-entry-grid">
+              <label>Receipt Date<input type="date" value={receiptDraft.receiptDate} onChange={e=>setReceiptDraft(v=>({...v,receiptDate:e.target.value}))} required/></label>
+              <label>Bag Type<select value={receiptDraft.bagTypeId} onChange={e=>setReceiptDraft(v=>({...v,bagTypeId:e.target.value}))} required><option value="">Select bag type</option>{bagTypes.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+              <label>Quantity (NOS)<input type="number" min="1" step="1" value={receiptDraft.quantity} onChange={e=>setReceiptDraft(v=>({...v,quantity:e.target.value}))} placeholder="Enter bags" required/></label>
+              <label>Receipt / Challan No.<input value={receiptDraft.sourceRef} onChange={e=>setReceiptDraft(v=>({...v,sourceRef:e.target.value}))} placeholder="Optional reference"/></label>
+              <label>Remarks<input value={receiptDraft.remarks} onChange={e=>setReceiptDraft(v=>({...v,remarks:e.target.value}))} placeholder="Optional remarks"/></label>
+              <div className="receipt-entry-action"><button className="primary" type="submit" disabled={receiptSaving}>{receiptSaving?"Saving…":"Save Receipt"}</button></div>
+            </div>
+            {receiptNotice&&<div className="alert success">{receiptNotice}</div>}{receiptError&&<div className="alert error">{receiptError}</div>}
+            <p className="footnote">Receipt entries are saved to the stock ledger. Duplicate challan references for the same bag type and date are ignored.</p>
+          </form>}
+          <div className="panel"><div className="panel-title"><h3>Receipt register</h3><span className="pill">{receipts.length.toLocaleString("en-IN")} records loaded</span></div><div className="table-scroll"><table><thead><tr><th>Receipt Date</th><th>Bag Type</th><th className="num">Quantity (NOS)</th><th>Receipt / Challan No.</th><th>Remarks</th><th>Recorded At</th></tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table></div></div>
+        </section>}
         {tab==="Upload Data" && <section><div className="section-head"><div><span className="eyebrow">DATA IMPORT</span><h1>Upload Packing Plant Data</h1><p className="muted">Select a workbook to inspect its contents before any import is enabled.</p></div></div>
           <div className="panel"><div className="dropzone"><FileSpreadsheet size={34}/><h3>Select Excel or CSV workbook</h3><p>Supported: .xlsx, .xls, .csv</p><input type="file" accept=".xlsx,.xls,.csv" onChange={e=>e.target.files?.[0]&&parseFile(e.target.files[0])}/></div>
           {file && <p className="fileline"><b>{file.name}</b><button className="text-btn" onClick={()=>{setFile(null);setWorkbook(null);setSheetName("");setHeaders([]);setAllRows([]);setPreview([]);setNotice("");}}>Clear selected file</button></p>}
