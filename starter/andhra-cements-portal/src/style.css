@@ -224,3 +224,20 @@ footer{font-size:10px;padding:12px 0 10px}
   th,td{padding:7px !important}
   input,select,textarea{font-size:12px !important}
 }
+
+
+/* Keep each stoppage classification entry on one compact row on desktop */
+.pp-compact .pp-gap-row{
+  grid-template-columns:100px 52px minmax(125px,0.85fr) minmax(180px,1.15fr) minmax(180px,1fr);
+  align-items:center;
+  gap:8px;
+}
+.pp-compact .pp-gap-row b,
+.pp-compact .pp-gap-row span{white-space:nowrap}
+.pp-compact .pp-gap-row select,
+.pp-compact .pp-gap-row input{width:100%;min-width:0}
+@media(max-width:900px){
+  .pp-compact .pp-gap-row{grid-template-columns:1fr 1fr}
+  .pp-compact .pp-gap-row select,
+  .pp-compact .pp-gap-row input{grid-column:span 2}
+}
