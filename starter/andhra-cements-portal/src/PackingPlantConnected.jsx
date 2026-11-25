@@ -6,6 +6,7 @@ const CATEGORIES = ["Mechanical","Electrical","Instrumentation","Operational","P
 const today = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const shiftStart = () => 0;
 const clock = m => Number(m)===1440 ? "24:00" : String(Math.floor(Number(m)/60)).padStart(2,"0")+":"+String(Number(m)%60).padStart(2,"0");
+const TIME_OPTIONS = Array.from({length:289},(_,i)=>i===288?1440:i*5);
 const toMinute = t => { const [h,m]=String(t||"00:00").split(":").map(Number); return h*60+m; };
 const toRelative = t => toMinute(t);
 const fromRelative = n => clock(n);
@@ -34,7 +35,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     for(const x of own){
       if(x.startMinute<previous || x.startMinute<0 || x.endMinute>1440 || x.endMinute<=x.startMinute) overlap=true;
       if(x.startMinute>previous)gaps.push({start:previous,end:x.startMinute});
-      if(x.startMinute>=previous && x.endMinute<=480)running+=x.endMinute-x.startMinute;
+      if(x.startMinute>=previous && x.endMinute<=1440)running+=x.endMinute-x.startMinute;
       previous=Math.max(previous,x.endMinute);
     }
     if(previous<1440)gaps.push({start:previous,end:1440});
@@ -110,7 +111,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       <div className="alert">Production quantity is taken automatically from cement dispatch records. Enter only running intervals and stoppage details.</div>
       <div className="panel-title pp-subhead"><h3>Running intervals</h3><button className="secondary" type="button" disabled={!canEdit} onClick={()=>addInterval(p.id)}>+ Add interval</button></div>
       <div className="table-scroll"><table><thead><tr><th>Start</th><th>Stop</th><th>Duration</th><th></th></tr></thead><tbody>
-      {p.own.map(x=><tr key={x.id}><td><input type="text" value={fromRelative(x.start_minute)} placeholder="HH:MM" disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value))}/></td><td><input type="text" value={fromRelative(x.end_minute)} placeholder="HH:MM / 24:00" disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
+      {p.own.map(x=><tr key={x.id}><td><select aria-label="Running start time" value={Number(x.start_minute)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",Number(e.target.value))}>{TIME_OPTIONS.slice(0,-1).map(n=><option key={n} value={n}>{clock(n)}</option>)}</select></td><td><select aria-label="Running stop time" value={Number(x.end_minute)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"end_minute",Number(e.target.value))}>{TIME_OPTIONS.filter(n=>n>Number(x.start_minute)).map(n=><option key={n} value={n}>{clock(n)}</option>)}</select></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
       {!p.own.length&&<tr><td colSpan="4" className="muted">No running intervals recorded for this unit and date.</td></tr>}</tbody></table></div>
       <div className="pp-summary-grid"><div><span>Recorded running time</span><b>{fmtH(p.running)} h</b></div><div><span>Recorded stoppage time</span><b>{fmtH(p.stoppage)} h</b></div></div>
       <h4 className="pp-subtitle">Stoppage classification</h4>
