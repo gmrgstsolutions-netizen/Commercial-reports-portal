@@ -83,37 +83,28 @@ export default function PackingPlantReportsConnected({ supabase }) {
     const wb = XLSX.utils.book_new();
     if (reportKey === "daily_stoppage") {
       const aoa = [["ANDHRA CEMENTS LIMITED – DACHEPALLI"],["STOPPAGE ANALYSIS REPORT"],["Period: " + fromDate + " to " + toDate],[]];
-      const merges = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}}];
+      const merges = [{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}},{s:{r:2,c:0},e:{r:2,c:9}}];
       for (const group of stoppageGroups) {
         aoa.push([group.asset + "  |  " + group.date]);
-        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:7}});
-        aoa.push(["Stop No.","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned","Target TPH","Adjustment Status"]);
+        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:9}});
+        aoa.push(["Stop No.","Date","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Stoppage Category","Day Stoppage Hours","Day Running Hours","Day Production (MT)"]);
         const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
-        if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",x.target_tph??"",x.adjustment_status??""]));
-         else aoa.push(["—","","","","No stoppage recorded","","",""]);
-        const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
-        const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
-        const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
-        aoa.push(["Daily Total","","","","","","Running Hours",running]);
-        aoa.push(["","","","","","","Stoppage Hours",stopped]);
-        aoa.push(["","","","","","","Production (MT)",production]);
+        if(details.length) details.forEach(x=>aoa.push([
+          x.stop_number??"",x.business_date??group.date,x.stop_time??"",x.start_time??"",
+          Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",
+          Number(x.day_stoppage_hours)||0,Number(x.day_running_hours)||0,Number(x.day_production_mt)||0
+        ]));
+        else {
+          const summary=group.rows[0]||{};
+          aoa.push(["",group.date,"","","","No stoppage recorded","",
+            Number(summary.day_stoppage_hours)||0,Number(summary.day_running_hours)||0,Number(summary.day_production_mt)||0]);
+        }
         aoa.push([]);
       }
       const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!merges"]=merges;
-      ws["!cols"]=[{wch:11},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:12},{wch:48}];
+      ws["!cols"]=[{wch:10},{wch:13},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:19},{wch:18},{wch:19}];
       XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
-      if (runningRows.length) {
-        const runExport = runningRows.map(x => ({
-          "Business Date": x.business_date, "Section": x.asset_name,
-          "Start Time": x.start_time, "Stop Time": x.end_time,
-          "Adjusted Running Hours": x.duration_hours, "Target TPH": x.target_tph,
-          "Adjustment Status": x.adjustment_status
-        }));
-        const runWs = XLSX.utils.json_to_sheet(runExport);
-        runWs["!cols"] = [{wch:14},{wch:18},{wch:13},{wch:13},{wch:22},{wch:12},{wch:52}];
-        XLSX.utils.book_append_sheet(wb,runWs,"Adjusted Running Hours");
-      }
-    } else {
+else {
       const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
       const totalRow=Object.fromEntries(columns.map((key,i)=>[key,i===0?"Grand Total":totalKeys.includes(key)?rows.reduce((sum,row)=>sum+(Number(row[key])||0),0):""]));
       const exportRows=[...rows,totalRow].map(row=>Object.fromEntries(columns.map(key=>[LABELS[key]||key.replace(/_/g," "),row[key]??""])));
@@ -151,12 +142,6 @@ export default function PackingPlantReportsConnected({ supabase }) {
       <div className="panel-title"><h3>{selected.label}</h3><span className="pill">{rows.length.toLocaleString("en-IN")} rows · MT where applicable</span></div>
       {rows.length ? reportKey === "daily_stoppage" ? <div className="stoppage-report">
         <div className="stoppage-report-heading"><strong>ANDHRA CEMENTS LIMITED – DACHEPALLI</strong><b>STOPPAGE ANALYSIS REPORT</b><span>Period: {fromDate} to {toDate}</span></div>
-        <div className="stoppage-asset-section">
-          <h4>Adjusted Running Intervals</h4>
-          <div className="table-scroll"><table><thead><tr><th>Date</th><th>Section</th><th>Start Time</th><th>Stop Time</th><th>Running Hours</th><th>Target TPH</th><th>Adjustment Status</th></tr></thead>
-            <tbody>{runningRows.map((row,i)=><tr key={i}><td>{display(row.business_date)}</td><td>{display(row.asset_name)}</td><td>{display(row.start_time)}</td><td>{display(row.end_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td className="num">{display(row.target_tph,"target_tph")}</td><td>{display(row.adjustment_status)}</td></tr>)}</tbody>
-          </table></div>
-        </div>
         {stoppageGroups.map((group,gi)=>{
           const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
           const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
@@ -164,10 +149,9 @@ export default function PackingPlantReportsConnected({ supabase }) {
           const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
           return <div className="stoppage-asset-section" key={gi}>
             <h4>{group.asset}<span>{group.date}</span></h4>
-            <div className="table-scroll"><table><thead><tr><th>Stop No.</th><th>Stop Time</th><th>Restart Time</th><th>Duration (Hours)</th><th>Reason for Stoppage</th><th>Planned / Unplanned</th></tr></thead>
-              <tbody>{details.length?details.map((row,i)=><tr key={i}><td className="num">{display(row.stop_number,"stop_number")}</td><td>{display(row.stop_time)}</td><td>{display(row.start_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td>{display(row.reason)}</td><td>{display(row.stoppage_classification)}</td></tr>):<tr><td colSpan="6" className="muted">No stoppage recorded</td></tr>}</tbody>
+            <div className="table-scroll"><table><thead><tr><th>Stop No.</th><th>Date</th><th>Stop Time</th><th>Restart Time</th><th>Duration (Hours)</th><th>Reason for Stoppage</th><th>Stoppage Category</th><th>Day Stoppage Hours</th><th>Day Running Hours</th><th>Day Production (MT)</th></tr></thead>
+              <tbody>{details.length?details.map((row,i)=><tr key={i}><td className="num">{display(row.stop_number,"stop_number")}</td><td>{display(row.business_date)}</td><td>{display(row.stop_time)}</td><td>{display(row.start_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td>{display(row.reason)}</td><td>{display(row.stoppage_classification)}</td><td className="num">{Number(row.day_stoppage_hours)?display(row.day_stoppage_hours,"day_stoppage_hours"):""}</td><td className="num">{Number(row.day_running_hours)?display(row.day_running_hours,"day_running_hours"):""}</td><td className="num">{Number(row.day_production_mt)?display(row.day_production_mt,"day_production_mt"):""}</td></tr>):<tr><td colSpan="10" className="muted">No stoppage recorded</td></tr>}</tbody>
             </table></div>
-            <div className="stoppage-summary"><span>Running Hours <b>{running.toFixed(2)}</b></span><span>Stoppage Hours <b>{stopped.toFixed(2)}</b></span><span>Production (MT) <b>{production.toLocaleString("en-IN",{maximumFractionDigits:2})}</b></span></div>
           </div>;
         })}
       </div> : <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
