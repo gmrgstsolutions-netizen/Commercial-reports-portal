@@ -61,7 +61,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
         ]);
         for(const x of [pr,iv,st,sp])if(x.error)throw x.error;
         const p={}; for(const row of pr.data||[]){p[row.packer_code]??={PPC:"",OPC:""};p[row.packer_code][row.product_code]=String(row.quantity_mt);}
-        setProduction(p);const normalizedIntervals=(iv.data||[]).map(x=>{const entered=["PPC","OPC"].filter(k=>p[x.packer_code]?.[k]!==undefined&&p[x.packer_code]?.[k]!==""&&Number(p[x.packer_code][k])>=0);return x.packer_code!=="BULK"&&entered.length===1?{...x,product_code:entered[0]}:x;});setIntervals(normalizedIntervals);setOriginalIntervalIds((iv.data||[]).map(x=>x.id));
+        setProduction(p);const normalizedIntervals=(iv.data||[]).map(x=>{const entered=["PPC","OPC"].filter(k=>p[x.packer_code]?.[k]!==undefined&&p[x.packer_code]?.[k]!==""&&Number(p[x.packer_code][k])>=0);return entered.length===1?{...x,product_code:entered[0]}:x;});setIntervals(normalizedIntervals);setOriginalIntervalIds((iv.data||[]).map(x=>x.id));
         setStaff({packing_plc_operator:st.data?.packing_plc_operator||"",truck_loading_operator:st.data?.truck_loading_operator||"",shift_incharge:st.data?.shift_incharge||shiftInchargeName});
         const choices={};for(const row of sp.data||[]){const marker=" | Additional: ";const saved=String(row.reason_snapshot||"");const split=saved.indexOf(marker);choices[row.packer_code+"-"+row.start_minute+"-"+row.end_minute]={category:row.category,reason:split>=0?saved.slice(0,split):saved,additionalReason:split>=0?saved.slice(split+marker.length):"",reason_id:row.reason_id};}setGapChoices(choices);
       }
