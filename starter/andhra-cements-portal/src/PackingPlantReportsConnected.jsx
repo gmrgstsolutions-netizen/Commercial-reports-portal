@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 
 const REPORTS = [
   { key: "shift_production", label: "Shift-wise Packing Production", note: "Actual recorded PPC/OPC production and running hours by business date, shift, packer and product." },
-  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Packer 1, Bulk Loading, Packer 2 and Packer 3 running hours, stoppage periods, reasons and daily totals." },
+  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Packer 1, Bulk Loading, Packer 2 and Packer 3 running hours, stoppage periods, reasons, Planned/Unplanned classification and daily totals. Bulk production is intentionally left blank." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Shift-wise production, number of active packers and truck-loading quantity." },
   { key: "production_dispatch", label: "Production vs Dispatch", note: "Daily product-wise production compared with cement and clinker dispatch. Difference = production minus dispatch." },
   { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
@@ -107,7 +107,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       {rows.length ? <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
         {rows.map((row, i) => <tr key={i}>{columns.map(k => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{display(row[k], k)}</td>)}</tr>)}
         {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
-      </tbody></table></div> : <p className="muted">No records found for the selected dates. Production reports will populate after Packing Plant shift entries are saved.</p>}
+      </tbody></table></div> : <p className="muted">No records found for the selected dates. Enter running intervals and classify stoppage periods under Packing Plant Operations, then save the shift. Bulk Loading running and stoppage hours are included; Bulk production remains blank.</p>}
     </div>}
     {reportKey === "raw_material_receipts" && <div className="alert warning">Raw Material Receipts includes only External-type inward movements; Cement/CLN weighments and outgoing scrap are excluded.</div>}
   </section>;
