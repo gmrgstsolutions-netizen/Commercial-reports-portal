@@ -15,6 +15,7 @@ const uid = () => globalThis.crypto?.randomUUID?.() || "pp-"+Date.now()+"-"+Math
 export default function PackingPlantConnected({supabase,session,profile,shiftInchargeName=""}) {
   const [date,setDate]=useState(today());
   const [shift,setShift]=useState("A");
+  const [selectedArea,setSelectedArea]=useState("P1");
   const [shiftId,setShiftId]=useState(null);
   const [production,setProduction]=useState({});
   const [intervals,setIntervals]=useState([]);
@@ -42,7 +43,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     const expected=p.tph?running/60*p.tph:0;
     return {...p,own,gaps,running,stoppage:gaps.reduce((s,g)=>s+g.end-g.start,0),qty,expected,util:p.tph&&expected?qty/expected*100:null,overlap};
   }),[intervals,production]);
-  const totals=timeline.reduce((a,p)=>({qty:a.qty+p.qty,expected:a.expected+p.expected}),{qty:0,expected:0});
+  const selectedTimeline=timeline.find(p=>p.id===selectedArea)||timeline[0];
 
   async function load() {
     setLoading(true); setMessage("");
@@ -119,8 +120,9 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00 next day</option></select></label>
       <div className="pp-shift-window"><span>Business date</span><b>{date}</b><small>C shift remains assigned to its starting date</small></div>
     </div>{shift==="C"&&<div className="alert">C Shift is displayed as {date} 22:00–24:00 and the following date 00:00–06:00. Both parts belong to this business date.</div>}</div>
-    <div className="stats"><div className="stat"><span>Total production (MT)</span><b>{totals.qty.toFixed(2)}</b></div><div className="stat"><span>Expected production (MT)</span><b>{totals.expected.toFixed(2)}</b></div><div className="stat"><span>Plant utilisation</span><b>{totals.expected?(totals.qty/totals.expected*100).toFixed(1)+"%":"N/A"}</b></div></div>
-    {timeline.map(p=><div className="panel" key={p.id}>
+    <div className="panel"><div className="mapping-grid pp-shift-controls"><label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · {p.tph} TPH</option>)}</select></label><div className="pp-shift-window"><span>Selected unit</span><b>{selectedTimeline.name}</b><small>Enter running hours, stoppages and production for this unit only.</small></div></div></div>
+    <div className="stats"><div className="stat"><span>{selectedTimeline.name} production (MT)</span><b>{selectedTimeline.qty.toFixed(2)}</b></div><div className="stat"><span>Expected production (MT)</span><b>{selectedTimeline.expected.toFixed(2)}</b></div><div className="stat"><span>Unit utilisation</span><b>{selectedTimeline.expected?(selectedTimeline.qty/selectedTimeline.expected*100).toFixed(1)+"%":"N/A"}</b></div></div>
+    {timeline.filter(p=>p.id===selectedArea).map(p=><div className="panel" key={p.id}>
       <div className="panel-title"><h3>{p.name} · {p.tph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
       <div className="mapping-grid pp-production-grid"><label>PPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.PPC||""} onChange={e=>updateQty(p.id,"PPC",e.target.value)} disabled={!canEdit}/></label><label>OPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.OPC||""} onChange={e=>updateQty(p.id,"OPC",e.target.value)} disabled={!canEdit}/></label><div className="pp-kpi"><span>Combined utilisation (OPC + PPC)</span><b>{p.util===null?"N/A":p.util.toFixed(1)+"%"}</b></div></div>
       <div className="panel-title pp-subhead"><h3>Running intervals</h3><button className="secondary" type="button" disabled={!canEdit} onClick={()=>addInterval(p.id)}>+ Add interval</button></div>
