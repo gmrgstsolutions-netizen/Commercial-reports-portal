@@ -333,3 +333,21 @@ body{
 .panel,.stat,.login-card{
   background:#ffffff !important;
 }
+
+
+/* Daily stoppage analysis report layout */
+.stoppage-report{display:flex;flex-direction:column;gap:14px}
+.stoppage-report-heading{text-align:center;display:flex;flex-direction:column;gap:4px;padding:5px 0 12px;border-bottom:2px solid #173b5b;color:#173b5b}
+.stoppage-report-heading strong{font-size:15px;font-weight:800;letter-spacing:.35px}
+.stoppage-report-heading b{font-size:14px;font-weight:800}
+.stoppage-report-heading span{font-size:11px;color:#62758a}
+.stoppage-asset-section{border:1px solid #d9e3ec;border-radius:8px;overflow:hidden;background:#fff}
+.stoppage-asset-section h4{display:flex;justify-content:space-between;align-items:center;margin:0;padding:9px 12px;background:#e8eff5;color:#173b5b;font-size:13px;font-weight:800}
+.stoppage-asset-section h4 span{font-size:11px;font-weight:700;color:#536b82}
+.stoppage-asset-section table{font-size:11px}
+.stoppage-asset-section th{background:#f1f5f8;color:#40566c;font-size:9px;white-space:normal}
+.stoppage-asset-section td{font-size:11px;white-space:normal;vertical-align:top}
+.stoppage-summary{display:flex;justify-content:flex-end;gap:20px;flex-wrap:wrap;padding:9px 12px;background:#f7f9fb;border-top:1px solid #e5ebf0}
+.stoppage-summary span{display:flex;gap:7px;align-items:center;font-size:11px;color:#536579}
+.stoppage-summary b{font-size:12px;color:#9b342d;font-weight:800;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.stoppage-summary{justify-content:flex-start;gap:10px 16px}.stoppage-asset-section h4{padding:8px 9px}}
