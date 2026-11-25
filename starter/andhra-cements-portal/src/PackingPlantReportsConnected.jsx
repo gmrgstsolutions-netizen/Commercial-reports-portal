@@ -3,8 +3,8 @@ import { RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const REPORTS = [
-  { key: "shift_production", label: "Shift-wise Packing Production", note: "Dispatch-derived production and adjusted running hours by business date, shift, packer and product." },
-  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Dispatch-derived production with running and stoppage intervals adjusted to the agreed TPH targets; original stoppage reasons and Planned/Unplanned classification are retained." },
+  { key: "shift_production", label: "Daily Packing Production", note: "Dispatch-derived production and adjusted running hours by business date and packing unit." },
+  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Dispatch-derived production with full-day running and stoppage intervals adjusted to the agreed day-wise TPH targets; original stoppage reasons and Planned/Unplanned classification are retained." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Dispatch-derived production, running hours and truck-loading quantity." },
   { key: "production_dispatch", label: "Dispatch-derived Production", note: "Daily OPC/PPC bagged and bulk production quantities are sourced directly from dispatch data." },
   { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
@@ -13,7 +13,7 @@ const REPORTS = [
 ];
 
 const LABELS = {
-  business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product", start_time: "Start Time", end_time: "End Time",
+  business_date: "Business Date", packer_code: "Packer", product_code: "Product", start_time: "Start Time", end_time: "End Time",
   asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Restart Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)", target_tph: "Target TPH", adjustment_status: "Adjustment Status",
   dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
   production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
@@ -87,9 +87,9 @@ export default function PackingPlantReportsConnected({ supabase }) {
       for (const group of stoppageGroups) {
         aoa.push([group.asset + "  |  " + group.date]);
         merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:8}});
-        aoa.push(["Stop No.","Shift","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned","Target TPH","Adjustment Status"]);
+        aoa.push(["Stop No.","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned","Target TPH","Adjustment Status"]);
         const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
-        if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.shift_code??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",x.target_tph??"",x.adjustment_status??""]));
+        if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",x.target_tph??"",x.adjustment_status??""]));
         else aoa.push(["—","","","","No stoppage recorded","","","",""]);
         const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
         const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
@@ -104,13 +104,13 @@ export default function PackingPlantReportsConnected({ supabase }) {
       XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
       if (runningRows.length) {
         const runExport = runningRows.map(x => ({
-          "Business Date": x.business_date, "Shift": x.shift_code, "Section": x.asset_name,
-          "Product": x.product_code, "Start Time": x.start_time, "Stop Time": x.end_time,
+          "Business Date": x.business_date, "Section": x.asset_name,
+          "Start Time": x.start_time, "Stop Time": x.end_time,
           "Adjusted Running Hours": x.duration_hours, "Target TPH": x.target_tph,
           "Adjustment Status": x.adjustment_status
         }));
         const runWs = XLSX.utils.json_to_sheet(runExport);
-        runWs["!cols"] = [{wch:14},{wch:9},{wch:18},{wch:12},{wch:13},{wch:13},{wch:22},{wch:12},{wch:52}];
+        runWs["!cols"] = [{wch:14},{wch:18},{wch:13},{wch:13},{wch:22},{wch:12},{wch:52}];
         XLSX.utils.book_append_sheet(wb,runWs,"Adjusted Running Hours");
       }
     } else {
@@ -153,8 +153,8 @@ export default function PackingPlantReportsConnected({ supabase }) {
         <div className="stoppage-report-heading"><strong>ANDHRA CEMENTS LIMITED – DACHEPALLI</strong><b>STOPPAGE ANALYSIS REPORT</b><span>Period: {fromDate} to {toDate}</span></div>
         <div className="stoppage-asset-section">
           <h4>Adjusted Running Intervals</h4>
-          <div className="table-scroll"><table><thead><tr><th>Date</th><th>Shift</th><th>Section</th><th>Product</th><th>Start Time</th><th>Stop Time</th><th>Running Hours</th><th>Target TPH</th><th>Adjustment Status</th></tr></thead>
-            <tbody>{runningRows.map((row,i)=><tr key={i}><td>{display(row.business_date)}</td><td>{display(row.shift_code)}</td><td>{display(row.asset_name)}</td><td>{display(row.product_code)}</td><td>{display(row.start_time)}</td><td>{display(row.end_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td className="num">{display(row.target_tph,"target_tph")}</td><td>{display(row.adjustment_status)}</td></tr>)}</tbody>
+          <div className="table-scroll"><table><thead><tr><th>Date</th><th>Section</th><th>Start Time</th><th>Stop Time</th><th>Running Hours</th><th>Target TPH</th><th>Adjustment Status</th></tr></thead>
+            <tbody>{runningRows.map((row,i)=><tr key={i}><td>{display(row.business_date)}</td><td>{display(row.asset_name)}</td><td>{display(row.start_time)}</td><td>{display(row.end_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td className="num">{display(row.target_tph,"target_tph")}</td><td>{display(row.adjustment_status)}</td></tr>)}</tbody>
           </table></div>
         </div>
         {stoppageGroups.map((group,gi)=>{
@@ -164,8 +164,8 @@ export default function PackingPlantReportsConnected({ supabase }) {
           const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
           return <div className="stoppage-asset-section" key={gi}>
             <h4>{group.asset}<span>{group.date}</span></h4>
-            <div className="table-scroll"><table><thead><tr><th>Stop No.</th><th>Shift</th><th>Stop Time</th><th>Restart Time</th><th>Duration (Hours)</th><th>Reason for Stoppage</th><th>Planned / Unplanned</th></tr></thead>
-              <tbody>{details.length?details.map((row,i)=><tr key={i}><td className="num">{display(row.stop_number,"stop_number")}</td><td>{display(row.shift_code)}</td><td>{display(row.stop_time)}</td><td>{display(row.start_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td>{display(row.reason)}</td><td>{display(row.stoppage_classification)}</td></tr>):<tr><td colSpan="7" className="muted">No stoppage recorded</td></tr>}</tbody>
+            <div className="table-scroll"><table><thead><tr><th>Stop No.</th><th>Stop Time</th><th>Restart Time</th><th>Duration (Hours)</th><th>Reason for Stoppage</th><th>Planned / Unplanned</th></tr></thead>
+              <tbody>{details.length?details.map((row,i)=><tr key={i}><td className="num">{display(row.stop_number,"stop_number")}</td><td>{display(row.stop_time)}</td><td>{display(row.start_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td>{display(row.reason)}</td><td>{display(row.stoppage_classification)}</td></tr>):<tr><td colSpan="6" className="muted">No stoppage recorded</td></tr>}</tbody>
             </table></div>
             <div className="stoppage-summary"><span>Running Hours <b>{running.toFixed(2)}</b></span><span>Stoppage Hours <b>{stopped.toFixed(2)}</b></span><span>Production (MT) <b>{production.toLocaleString("en-IN",{maximumFractionDigits:2})}</b></span></div>
           </div>;
@@ -173,7 +173,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       </div> : <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
         {rows.map((row, i) => <tr key={i}>{columns.map(k => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{display(row[k], k)}</td>)}</tr>)}
         {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
-      </tbody></table></div> : <p className="muted">No records found for the selected dates. Enter running intervals and classify stoppage periods under Packing Plant Operations, then save the shift. Production is sourced from dispatch records and intervals are adjusted to the agreed TPH targets.</p>}
+      </tbody></table></div> : <p className="muted">No records found for the selected dates. Enter running intervals and classify stoppage periods for the full business date, then save daily records. Production is sourced from dispatch records and intervals are adjusted to the agreed TPH targets.</p>}
     </div>}
     {reportKey === "raw_material_receipts" && <div className="alert warning">Raw Material Receipts includes only External-type inward movements; Cement/CLN weighments and outgoing scrap are excluded.</div>}
   </section>;
