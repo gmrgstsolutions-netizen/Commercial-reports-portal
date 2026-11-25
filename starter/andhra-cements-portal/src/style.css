@@ -79,3 +79,60 @@
 .pp-compact .pp-register-actions,.pp-compact .date-tools{margin-top:10px}
 @media(max-width:760px){.pp-compact .pp-control-panel .mapping-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.pp-compact .pp-control-panel .mapping-grid{grid-template-columns:1fr}.pp-compact .pp-compact-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.pp-compact .pp-compact-stats .stat{padding:8px}.pp-compact .pp-compact-stats .stat b{font-size:15px}.pp-compact .pp-compact-stats .stat span{font-size:9px}}
+
+
+/* Global compact layout for every authenticated portal page */
+.main{padding-left:22px;padding-right:22px}
+.topbar{height:66px;margin-bottom:18px}
+.topbar h2{font-size:17px}
+.section-head{margin-bottom:14px}
+.section-head h1{font-size:21px;margin:3px 0}
+.muted{font-size:12px;line-height:1.45}
+.stats{gap:10px;margin-bottom:12px}
+.stat{padding:12px 14px;border-radius:11px}
+.stat b{font-size:19px;margin-top:4px}
+.panel{padding:15px 17px;margin-bottom:12px;border-radius:11px}
+.panel h3{font-size:14px;margin-bottom:10px}
+.panel-title{gap:10px;flex-wrap:wrap}
+table{font-size:11px}
+th{font-size:9px;padding:9px 10px}
+td{padding:9px 10px}
+.secondary{padding:8px 11px;font-size:11px}
+.primary{padding:9px 13px;font-size:12px}
+.icon-btn{width:33px;height:33px}
+.alert{padding:9px 11px;margin:10px 0;font-size:11px}
+.dropzone{padding:22px}
+.dropzone h3{font-size:14px}
+.dropzone p{margin:5px 0;font-size:11px}
+.fileline{margin:10px 0}
+.date-tools{gap:8px}
+.date-tools input{padding:8px 9px;font-size:12px}
+.mapping-panel{margin-top:14px;padding-top:14px}
+.mapping-grid{gap:10px;margin:10px 0 14px}
+.mapping-grid label,.mapping-panel>label{font-size:11px;gap:5px}
+.mapping-grid input,.mapping-grid select,.mapping-panel select{padding:8px 9px;font-size:12px}
+.selected-report-type{padding:8px 10px;font-size:12px}
+footer{padding:15px 0 12px}
+.sidebar{padding:18px 14px;gap:6px}
+.side-brand{padding-bottom:20px}
+.nav{padding:9px 10px;font-size:12px;gap:9px}
+.sidebar .nav-label{padding:11px 9px 3px}
+@media(max-width:760px){
+ .main{padding-left:15px;padding-right:15px}
+ .topbar{min-height:62px;margin-bottom:14px}
+ .panel{padding:13px}
+ .section-head h1{font-size:19px}
+}
+@media(max-width:560px){
+ .main{padding-left:11px;padding-right:11px}
+ .topbar{margin-bottom:12px}
+ .panel{padding:11px;margin-bottom:10px}
+ .stats{gap:7px}
+ .stat{padding:10px}
+ .stat b{font-size:17px}
+ table{font-size:10px}
+ th{padding:7px}
+ td{padding:7px}
+ .dropzone{padding:16px 10px}
+ .nav{padding:8px 9px}
+}
