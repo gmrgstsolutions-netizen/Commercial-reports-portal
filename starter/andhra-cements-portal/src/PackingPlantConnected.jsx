@@ -74,7 +74,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     finally{setLoading(false);}
   }
   useEffect(()=>{load();},[date,shift]);
-  const updateQty=(packer,product,value)=>{setProduction(v=>({...v,[packer]:activePeriod==="FULL"?{...(v[packer]||{PPC:"",OPC:""}),[product]:value}:{...(v[packer]||{}),[activePeriod]:{...(v[packer]?.[activePeriod]||{PPC:"",OPC:""}),[product]:value}}));if(packer!=="BULK"){const entered=["PPC","OPC"].filter(k=>k===product?value!==""&&Number(value)>=0:getQty(packer,k)!==""&&Number(getQty(packer,k))>=0);if(entered.length===1)setIntervals(v=>v.map(x=>x.packer_code===packer?{...x,product_code:entered[0]}:x));}};
+  const updateQty=(packer,product,value)=>{setProduction(v=>{const current={...(v[packer]||{})};if(activePeriod==="FULL")current[product]=value;else current[activePeriod]={...(current[activePeriod]||{PPC:"",OPC:""}),[product]:value};return {...v,[packer]:current};});if(packer!=="BULK"){const entered=["PPC","OPC"].filter(k=>k===product?value!==""&&Number(value)>=0:getQty(packer,k)!==""&&Number(getQty(packer,k))>=0);if(entered.length===1)setIntervals(v=>v.map(x=>x.packer_code===packer?{...x,product_code:entered[0]}:x));}};
   const addInterval=packer=>{const entered=["PPC","OPC"].filter(k=>getQty(packer,k)!==""&&Number(getQty(packer,k))>=0);setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:entered.length===1?entered[0]:"PPC",start_minute:0,end_minute:480}]);};
   const updateInterval=(id,field,value)=>setIntervals(v=>v.map(x=>x.id===id?{...x,[field]:value}:x));
   const removeInterval=id=>setIntervals(v=>v.filter(x=>x.id!==id));
