@@ -90,7 +90,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         aoa.push(["Stop No.","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Planned / Unplanned","Target TPH","Adjustment Status"]);
         const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
         if(details.length) details.forEach(x=>aoa.push([x.stop_number??"",x.stop_time??"",x.start_time??"",Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",x.target_tph??"",x.adjustment_status??""]));
-        else aoa.push(["—","","","","No stoppage recorded","","","",""]);
+        else aoa.push(["—","","","","No stoppage recorded","","","""]);
         const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
         const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
         const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
