@@ -4,17 +4,17 @@ const PACKERS = [{id:"P1",name:"Packer 1",minTph:95,maxTph:102},{id:"P2",name:"P
 const RUNNING_AREAS = [...PACKERS,{id:"BULK",name:"Bulk Loading",minTph:115,maxTph:120}];
 const CATEGORIES = ["Mechanical","Electrical","Instrumentation","Operational","Planned"];
 const today = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
-const shiftStart = code => ({A:360,B:840,C:1320}[code]);
-const clock = m => { const n=((m%1440)+1440)%1440; return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0"); };
+const shiftStart = () => 0;
+const clock = m => Number(m)===1440 ? "24:00" : String(Math.floor(Number(m)/60)).padStart(2,"0")+":"+String(Number(m)%60).padStart(2,"0");
 const toMinute = t => { const [h,m]=String(t||"00:00").split(":").map(Number); return h*60+m; };
-const toRelative = (t,code) => { let n=toMinute(t)-shiftStart(code); if(n<0)n+=1440; return n; };
-const fromRelative = (n,code) => clock(shiftStart(code)+Number(n));
+const toRelative = t => toMinute(t);
+const fromRelative = n => clock(n);
 const fmtH = n => (n/60).toFixed(2);
 const uid = () => globalThis.crypto?.randomUUID?.() || "pp-"+Date.now()+"-"+Math.random().toString(36).slice(2);
 
 export default function PackingPlantConnected({supabase,session,profile,shiftInchargeName=""}) {
   const [date,setDate]=useState(today());
-  const [shift,setShift]=useState("A");
+  const shift = "D";
   const [selectedArea,setSelectedArea]=useState("P1");
   const [shiftId,setShiftId]=useState(null);
   const [intervals,setIntervals]=useState([]);
@@ -26,18 +26,18 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
   const [saving,setSaving]=useState(false);
   const [message,setMessage]=useState("");
   const canEdit=["admin","uploader"].includes(profile?.role);
-  const start=shiftStart(shift), end=start+480;
+  const start=0, end=1440;
 
   const timeline=useMemo(()=>RUNNING_AREAS.map(p=>{
     const own=intervals.filter(x=>x.packer_code===p.id).map(x=>({...x,startMinute:Number(x.start_minute),endMinute:Number(x.end_minute)})).sort((a,b)=>a.startMinute-b.startMinute);
     let previous=0,running=0,overlap=false; const gaps=[];
     for(const x of own){
-      if(x.startMinute<previous || x.endMinute>480 || x.endMinute<=x.startMinute) overlap=true;
+      if(x.startMinute<previous || x.startMinute<0 || x.endMinute>1440 || x.endMinute<=x.startMinute) overlap=true;
       if(x.startMinute>previous)gaps.push({start:previous,end:x.startMinute});
       if(x.startMinute>=previous && x.endMinute<=480)running+=x.endMinute-x.startMinute;
       previous=Math.max(previous,x.endMinute);
     }
-    if(previous<480)gaps.push({start:previous,end:480});
+    if(previous<1440)gaps.push({start:previous,end:1440});
     return {...p,own,gaps,running,stoppage:gaps.reduce((s,g)=>s+g.end-g.start,0),overlap};
   }),[intervals]);
 
@@ -61,20 +61,20 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       }
       const {data:rs,error:re}=await supabase.from("pp_stoppage_reasons").select("id,category,reason").eq("is_active",true).order("category").order("reason");
       if(re)throw re;setReasons(rs||[]);
-    } catch(e){setMessage("Unable to load shift: "+e.message);}
+    } catch(e){setMessage("Unable to load daily operating hours: "+e.message);}
     finally{setLoading(false);}
   }
-  useEffect(()=>{load();},[date,shift]);
-  const addInterval=packer=>setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:"PPC",start_minute:0,end_minute:480}]);
+  useEffect(()=>{load();},[date]);
+  const addInterval=packer=>setIntervals(v=>[...v,{id:uid(),packer_code:packer,product_code:"PPC",start_minute:0,end_minute:1440}]);
   const updateInterval=(id,field,value)=>setIntervals(v=>v.map(x=>x.id===id?{...x,[field]:value}:x));
   const removeInterval=id=>setIntervals(v=>v.filter(x=>x.id!==id));
 
   async function save() {
     if(!canEdit){setMessage("Your account has read-only access. Contact the administrator for uploader access.");return;}
-    if(timeline.some(p=>p.overlap)){setMessage("Correct overlapping or out-of-shift running intervals before saving.");return;}
+    if(timeline.some(p=>p.overlap)){setMessage("Correct overlapping intervals and keep all running times between 00:00 and 24:00.");return;}
     for(const p of timeline){
       const unclassified=p.gaps.find(g=>!gapChoices[p.id+"-"+g.start+"-"+g.end]?.category);
-      if(unclassified){setMessage(p.name+" stoppage from "+fromRelative(unclassified.start,shift)+" to "+fromRelative(unclassified.end,shift)+" needs a category before saving.");return;} const withoutReason=p.gaps.find(g=>!String(gapChoices[p.id+"-"+g.start+"-"+g.end]?.reason||"").trim()); if(withoutReason){setMessage(p.name+" stoppage from "+fromRelative(withoutReason.start,shift)+" to "+fromRelative(withoutReason.end,shift)+" needs a predefined or manually entered reason before saving.");return;}
+      if(unclassified){setMessage(p.name+" stoppage from "+fromRelative(unclassified.start)+" to "+fromRelative(unclassified.end)+" needs a category before saving.");return;} const withoutReason=p.gaps.find(g=>!String(gapChoices[p.id+"-"+g.start+"-"+g.end]?.reason||"").trim()); if(withoutReason){setMessage(p.name+" stoppage from "+fromRelative(withoutReason.start)+" to "+fromRelative(withoutReason.end)+" needs a predefined or manually entered reason before saving.");return;}
     }
     setSaving(true);setMessage("");
     try{
@@ -93,7 +93,7 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
       const {data:existingStops,error:stopReadError}=await supabase.from("pp_stoppages").select("id").eq("shift_id",id);if(stopReadError)throw stopReadError;
       if(existingStops?.length){const {error}=await supabase.from("pp_stoppages").delete().eq("shift_id",id);if(error)throw error;}
       if(stopRows.length){const {error}=await supabase.from("pp_stoppages").insert(stopRows);if(error)throw error;}
-      setOriginalIntervalIds(intervals.map(x=>x.id));setMessage("Saved successfully to the Packing Plant database.");
+      setOriginalIntervalIds(intervals.map(x=>x.id));setMessage("Daily running hours and stoppages saved successfully.");
     }catch(e){setMessage("Save failed: "+e.message);}
     finally{setSaving(false);}
   }
@@ -102,23 +102,23 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Production &amp; Running Hours</h1><p className="muted">Running hours, stoppages and staff. Production is sourced from dispatch data.</p></div><span className="pill">{canEdit?"Uploader access":"Read-only access"}</span></div>
     <div className="panel pp-control-panel"><div className="mapping-grid pp-shift-controls">
       <label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-      <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00 next day</option></select><small className="pp-control-hint">C shift is assigned to its starting date.</small></label>
+      <label>Operating period<input value="00:00–24:00 (Full day · 24 hours)" readOnly /></label>
       <label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · Target range {p.minTph}–{p.maxTph} TPH</option>)}</select></label>
-    </div>{shift==="C"&&<div className="alert">C Shift covers {date} 22:00–24:00 and the following date 00:00–06:00.</div>}</div>
+    </div></div>
     {timeline.filter(p=>p.id===selectedArea).map(p=><div className="panel" key={p.id}>
-      <div className="panel-title"><h3>{p.name} · {p.tph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
+      <div className="panel-title"><h3>{p.name} · Target range {p.minTph}–{p.maxTph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
       <div className="alert">Production quantity is taken automatically from cement dispatch records. Enter only running intervals and stoppage details.</div>
       <div className="panel-title pp-subhead"><h3>Running intervals</h3><button className="secondary" type="button" disabled={!canEdit} onClick={()=>addInterval(p.id)}>+ Add interval</button></div>
       <div className="table-scroll"><table><thead><tr><th>Start</th><th>Stop</th><th>Duration</th><th></th></tr></thead><tbody>
-      {p.own.map(x=><tr key={x.id}><td><input type="time" value={fromRelative(x.start_minute,shift)} disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value,shift))}/></td><td><input type="time" value={fromRelative(x.end_minute%480===0&&x.end_minute!==0?x.end_minute: x.end_minute,shift)} disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value,shift);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
+      {p.own.map(x=><tr key={x.id}><td><input type="text" value={fromRelative(x.start_minute)} placeholder="HH:MM" disabled={!canEdit} onChange={e=>updateInterval(x.id,"start_minute",toRelative(e.target.value))}/></td><td><input type="time" value={fromRelative(x.end_minute)} placeholder="HH:MM / 24:00" disabled={!canEdit} onChange={e=>{const n=toRelative(e.target.value);updateInterval(x.id,"end_minute",n);}}/></td><td>{fmtH(x.end_minute-x.start_minute)} h</td><td><button className="text-btn" disabled={!canEdit} onClick={()=>removeInterval(x.id)}>Remove</button></td></tr>)}
       {!p.own.length&&<tr><td colSpan="4" className="muted">No running intervals recorded for this unit and shift.</td></tr>}</tbody></table></div>
       <div className="pp-summary-grid"><div><span>Recorded running time</span><b>{fmtH(p.running)} h</b></div><div><span>Recorded stoppage time</span><b>{fmtH(p.stoppage)} h</b></div></div>
       <h4 className="pp-subtitle">Stoppage classification</h4>
-      {p.gaps.map(g=>{const key=p.id+"-"+g.start+"-"+g.end;const v=gapChoices[key]||{};return <div className="pp-gap-row" key={key}><b>{fromRelative(g.start,shift)}–{fromRelative(g.end,shift)}</b><span>{fmtH(g.end-g.start)} h</span><select disabled={!canEdit} value={v.category||""} onChange={e=>{const r=reasons.find(x=>x.category===e.target.value);setGapChoices(s=>({...s,[key]:{category:e.target.value,reason_id:null,reason:r?.reason||""}}));}}><option value="">Select category</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select><select disabled={!canEdit||!v.category} value={v.reason_id||""} onChange={e=>{const r=reasons.find(x=>x.id===e.target.value);setGapChoices(s=>({...s,[key]:{...v,reason_id:r?.id||null,reason:r?.reason||"",additionalReason:v.additionalReason||""}}));}}><option value="">Select predefined reason (optional)</option>{reasons.filter(r=>r.category===v.category).map(r=><option key={r.id} value={r.id}>{r.reason}</option>)}</select><input type="text" disabled={!canEdit||!v.category} value={v.reason_id?(v.additionalReason||""):(v.reason||"")} placeholder={v.reason_id?"Additional reason (optional)":"Or enter stoppage reason manually"} onChange={e=>setGapChoices(s=>({...s,[key]:v.reason_id?{...v,additionalReason:e.target.value}:{...v,reason:e.target.value}}))}/></div>;})}
+      {p.gaps.map(g=>{const key=p.id+"-"+g.start+"-"+g.end;const v=gapChoices[key]||{};return <div className="pp-gap-row" key={key}><b>{fromRelative(g.start)}–{fromRelative(g.end)}</b><span>{fmtH(g.end-g.start)} h</span><select disabled={!canEdit} value={v.category||""} onChange={e=>{const r=reasons.find(x=>x.category===e.target.value);setGapChoices(s=>({...s,[key]:{category:e.target.value,reason_id:null,reason:r?.reason||""}}));}}><option value="">Select category</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select><select disabled={!canEdit||!v.category} value={v.reason_id||""} onChange={e=>{const r=reasons.find(x=>x.id===e.target.value);setGapChoices(s=>({...s,[key]:{...v,reason_id:r?.id||null,reason:r?.reason||"",additionalReason:v.additionalReason||""}}));}}><option value="">Select predefined reason (optional)</option>{reasons.filter(r=>r.category===v.category).map(r=><option key={r.id} value={r.id}>{r.reason}</option>)}</select><input type="text" disabled={!canEdit||!v.category} value={v.reason_id?(v.additionalReason||""):(v.reason||"")} placeholder={v.reason_id?"Additional reason (optional)":"Or enter stoppage reason manually"} onChange={e=>setGapChoices(s=>({...s,[key]:v.reason_id?{...v,additionalReason:e.target.value}:{...v,reason:e.target.value}}))}/></div>;})}
     </div>)}
-    <div className="panel"><h3>Common shift staff</h3><div className="mapping-grid"><label>Packing PLC Operator<input value={staff.packing_plc_operator} disabled={!canEdit} onChange={e=>setStaff(s=>({...s,packing_plc_operator:e.target.value}))}/></label><label>Truck Loading Operator<input value={staff.truck_loading_operator} disabled={!canEdit} onChange={e=>setStaff(s=>({...s,truck_loading_operator:e.target.value}))}/></label><label>Shift Incharge<input value={staff.shift_incharge} disabled={!canEdit} onChange={e=>setStaff(s=>({...s,shift_incharge:e.target.value}))}/></label></div>
-      <div className="date-tools"><button className="secondary" onClick={load} disabled={loading||saving}>Reload shift</button><button className="primary" onClick={save} disabled={!canEdit||loading||saving}>{saving?"Saving…":"Save shift to database"}</button></div>
-      {loading&&<p className="muted">Loading saved shift…</p>}{message&&<div className={message.startsWith("Saved")?"alert":"alert warning"}>{message}</div>}
+    <div className="panel"><h3>Daily Operating Staff</h3><div className="mapping-grid"><label>Packing PLC Operator<input value={staff.packing_plc_operator} disabled={!canEdit} onChange={e=>setStaff(s=>({...s,packing_plc_operator:e.target.value}))}/></label><label>Truck Loading Operator<input value={staff.truck_loading_operator} disabled={!canEdit} onChange={e=>setStaff(s=>({...s,truck_loading_operator:e.target.value}))}/></label><label>Daily Incharge<input value={staff.shift_incharge} disabled={!canEdit} onChange={e=>setStaff(s=>({...s,shift_incharge:e.target.value}))}/></label></div>
+      <div className="date-tools"><button className="secondary" onClick={load} disabled={loading||saving}>Reload day</button><button className="primary" onClick={save} disabled={!canEdit||loading||saving}>{saving?"Saving…":"Save daily records"}</button></div>
+      {loading&&<p className="muted">Loading saved daily records…</p>}{message&&<div className={message.startsWith("Saved")?"alert":"alert warning"}>{message}</div>}
     </div>
   </section>;
 }
