@@ -14,7 +14,7 @@ const REPORTS = [
 
 const LABELS = {
   business_date: "Business Date", shift_code: "Shift", packer_code: "Packer", product_code: "Product",
-  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Start Time", duration_hours: "Duration (Hours)", category: "Category", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)",
+  asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Start Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)",
   dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
   production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
   truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
