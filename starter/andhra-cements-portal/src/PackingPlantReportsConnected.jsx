@@ -6,7 +6,7 @@ const REPORTS = [
   { key: "shift_production", label: "Shift-wise Packing Production", note: "Dispatch-derived production and adjusted running hours by business date, shift, packer and product." },
   { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Dispatch-derived production with running and stoppage intervals adjusted to the agreed TPH targets; original stoppage reasons and Planned/Unplanned classification are retained." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Dispatch-derived production, running hours and truck-loading quantity." },
-  { key: "production_dispatch", label: "Production vs Dispatch", note: "Production quantities are sourced directly from uploaded dispatch data; no manual production quantities are used." },
+  { key: "production_dispatch", label: "Dispatch-derived Production", note: "Daily OPC/PPC bagged and bulk production quantities are sourced directly from dispatch data." },
   { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
   { key: "raw_material_receipts", label: "Weighbridge Raw Material Receipts", note: "External-type inward weighments grouped by date, material and supplier. Cement/CLN dispatch weighments and outgoing scrap are excluded; missing shifts remain unclassified." },
   { key: "monthly_performance", label: "Monthly / FY Packing Performance", note: "Monthly production compared with cement and clinker dispatch for the selected date range. FY range can be selected as 1 April to 31 March." }
@@ -17,7 +17,7 @@ const LABELS = {
   asset_name: "Section", stop_number: "Stop No.", stop_time: "Stop Time", start_time: "Restart Time", duration_hours: "Duration (Hours)", category: "Category", stoppage_classification: "Planned / Unplanned", reason: "Reason", day_stoppage_hours: "Day Stoppage Hours", day_running_hours: "Day Running Hours", day_production_mt: "Day Production (MT)", target_tph: "Target TPH", adjustment_status: "Adjustment Status",
   dispatch_date: "Dispatch Date", invoice_no: "Invoice No.", customer_name: "Customer", vehicle_no: "Vehicle No.", transporter: "Transporter", qty: "Dispatch (MT)", product: "Product",
   production_mt: "Production (MT)", running_hours: "Running Hours", active_packers: "Active Packers",
-  truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)",
+  truck_loading_mt: "Truck Loading (MT)", dispatch_mt: "Dispatch (MT)", stoppage_hours: "Stoppage Hours",
   difference_mt: "Difference (MT)",
   invoice_numbers: "Invoice Numbers", invoice_lines: "Invoice Lines", weighbridge_mt: "Weighbridge (MT)",
   weighment_records: "Weighment Records", match_status: "Match Status", receipt_date: "Receipt Date",
@@ -25,7 +25,7 @@ const LABELS = {
   net_mt: "Net Weight (MT)", unclassified_shift_records: "Unclassified Shift Records", month: "Month"
 };
 
-const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty","stop_number","duration_hours","day_stoppage_hours","day_running_hours","day_production_mt","target_tph"]);
+const NUMERIC = new Set(["production_mt","running_hours","active_packers","truck_loading_mt","dispatch_mt","difference_mt","invoice_lines","weighbridge_mt","weighment_records","transactions","net_mt","unclassified_shift_records","qty","stop_number","duration_hours","day_stoppage_hours","day_running_hours","day_production_mt","target_tph","stoppage_hours"]);
 
 function display(value, key) {
   if (value === null || value === undefined || value === "") return "—";
