@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
-import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow } from "lucide-react";
+import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow, Trash2 } from "lucide-react";
 import "./style.css";
 import PackingPlantConnected from "./PackingPlantConnected.jsx";
 import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";
@@ -28,6 +28,7 @@ function App() {
   const [receipts, setReceipts] = useState([]);
   const [receiptDraft, setReceiptDraft] = useState({bagTypeId:"",receiptDate:new Date().toLocaleDateString("en-CA"),quantity:"",sourceRef:"",remarks:""});
   const [receiptSaving, setReceiptSaving] = useState(false);
+  const [receiptDeletingId, setReceiptDeletingId] = useState("");
   const [receiptNotice, setReceiptNotice] = useState("");
   const [receiptError, setReceiptError] = useState("");
   const [reportDate, setReportDate] = useState(new Date().toLocaleDateString("en-CA"));
@@ -151,6 +152,22 @@ function App() {
       await loadData();
     } catch(err) { setReceiptError(err.message||"Unable to save this receipt."); }
     finally { setReceiptSaving(false); }
+  }
+
+  async function deletePackingBagReceipt(receipt) {
+    if (!isAdmin || !receipt?.id) return;
+    const bagName=bagTypes.find(b=>b.id===receipt.bag_type_id)?.name||"Unknown bag type";
+    const message="Remove this packing bag receipt?\\n\\nDate: "+receipt.receipt_date+"\\nBag type: "+bagName+"\\nQuantity: "+fmt(receipt.quantity)+" NOS\\nReference: "+(receipt.source_ref||"—")+"\\n\\nThis will recalculate the stock statement. This action cannot be undone.";
+    if (!window.confirm(message)) return;
+    setReceiptDeletingId(receipt.id); setReceiptError(""); setReceiptNotice("");
+    try {
+      const {data,error:deleteError}=await supabase.rpc("delete_packing_bag_receipt",{p_receipt_id:receipt.id});
+      if(deleteError) throw deleteError;
+      if(Number(data?.deleted)!==1) throw new Error("Receipt was not removed.");
+      setReceiptNotice("Receipt removed. Packing bag stock balances have been recalculated.");
+      await loadData();
+    } catch(err) { setReceiptError(err.message||"Unable to remove this receipt."); }
+    finally { setReceiptDeletingId(""); }
   }
 
   async function loadDispatch(filterOverride = null) {
@@ -372,7 +389,7 @@ function App() {
             {receiptNotice&&<div className="alert success">{receiptNotice}</div>}{receiptError&&<div className="alert error">{receiptError}</div>}
             <p className="footnote">Receipt entries are saved to the stock ledger. Duplicate challan references for the same bag type and date are ignored.</p>
           </form>}
-          <div className="panel"><div className="panel-title"><h3>Receipt register</h3><span className="pill">{receipts.length.toLocaleString("en-IN")} records loaded</span></div><div className="table-scroll"><table><thead><tr><th>Receipt Date</th><th>Bag Type</th><th className="num">Quantity (NOS)</th><th>Receipt / Challan No.</th><th>Remarks</th><th>Recorded At</th></tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table></div></div>
+          <div className="panel"><div className="panel-title"><h3>Receipt register</h3><span className="pill">{receipts.length.toLocaleString("en-IN")} records loaded</span></div><div className="table-scroll"><table><thead><tr><th>Receipt Date</th><th>Bag Type</th><th className="num">Quantity (NOS)</th><th>Receipt / Challan No.</th><th>Remarks</th><th>Recorded At</th>{isAdmin&&<th>Action</th>}</tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td>{isAdmin&&<td><button type="button" className="receipt-delete-btn" disabled={!!receiptDeletingId} onClick={()=>deletePackingBagReceipt(r)}><Trash2 size={14}/>{receiptDeletingId===r.id?"Removing…":"Remove"}</button></td>}</tr>)}</tbody></table></div></div>
         </section>}
         {tab==="Upload Data" && <section><div className="section-head"><div><span className="eyebrow">DATA IMPORT</span><h1>Upload Packing Plant Data</h1><p className="muted">Select a workbook to inspect its contents before any import is enabled.</p></div></div>
           <div className="panel"><div className="dropzone"><FileSpreadsheet size={34}/><h3>Select Excel or CSV workbook</h3><p>Supported: .xlsx, .xls, .csv</p><input type="file" accept=".xlsx,.xls,.csv" onChange={e=>e.target.files?.[0]&&parseFile(e.target.files[0])}/></div>
