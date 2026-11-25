@@ -136,3 +136,91 @@ footer{padding:15px 0 12px}
  .dropzone{padding:16px 10px}
  .nav{padding:8px 9px}
 }
+
+
+/* Portal-wide typography and compact visual hierarchy */
+:root{
+  font-family:Tahoma,Arial,sans-serif;
+  font-size:12px;
+  color:#1c2d40;
+  font-synthesis:none;
+}
+html,body,button,input,select,textarea,table{
+  font-family:Tahoma,Arial,sans-serif !important;
+  font-style:normal !important;
+}
+body{font-size:12px;line-height:1.4}
+h1,h2,h3,h4,h5,h6,
+.section-head h1,.topbar h2,.panel h3,.panel-title h3,
+.pp-subtitle,.pp-registers .pp-reason-group h4{
+  font-family:Tahoma,Arial,sans-serif !important;
+  font-style:normal !important;
+  font-weight:700 !important;
+  line-height:1.25;
+  color:#173653;
+}
+.section-head h1{font-size:21px !important}
+.topbar h2{font-size:18px !important}
+.panel h3,.panel-title h3{font-size:15px !important}
+h4,.pp-subtitle,.pp-registers .pp-reason-group h4{font-size:13px !important}
+.eyebrow,.nav-label{font-size:10px;font-weight:700;letter-spacing:.7px}
+p,.muted,.footnote{font-size:12px;line-height:1.4}
+label,.mapping-grid label,.mapping-panel>label,.date-tools label,
+.login-card label,.pp-prototype .pp-production-grid label,
+.pp-prototype .pp-gap-row,.pp-registers .pp-register-grid label{
+  font-size:12px !important;
+  font-weight:600;
+  line-height:1.3;
+}
+input,select,textarea,
+.login-card input,.login-card select,
+.pp-prototype input,.pp-prototype select,
+.pp-registers input,.pp-registers select{
+  min-height:32px;
+  padding:6px 9px !important;
+  font-family:Tahoma,Arial,sans-serif !important;
+  font-size:12px !important;
+  line-height:1.25;
+}
+button,.primary,.secondary,.nav,.text-btn{
+  font-family:Tahoma,Arial,sans-serif !important;
+  font-size:12px;
+  font-style:normal !important;
+}
+th{font-size:10px !important;font-weight:700;letter-spacing:.25px;padding:8px 9px !important}
+td{font-size:12px;padding:8px 9px !important;line-height:1.3}
+.panel{padding:13px 15px;margin-bottom:10px;border-radius:10px}
+.section-head{margin-bottom:11px}
+.stats{gap:8px;margin-bottom:10px}
+.stat{padding:10px 12px}
+.stat span{font-size:11px}
+.stat b{font-size:19px}
+.mapping-grid{gap:9px;margin:9px 0 12px}
+.dropzone{padding:18px}
+.alert{font-size:12px;padding:8px 10px;margin:8px 0}
+.pill{font-size:10px;padding:4px 8px}
+.login-card{padding:26px}
+.login-card h1{font-size:23px !important}
+.login-card label{margin:13px 0}
+footer{font-size:10px;padding:12px 0 10px}
+.sidebar{padding:16px 13px;gap:5px}
+.side-brand{padding-bottom:16px}
+.nav{padding:8px 9px;gap:8px}
+.sidebar .nav-label{padding:9px 8px 3px}
+.pp-compact .section-head h1{font-size:21px !important}
+.pp-compact .panel{padding:12px 14px;margin-bottom:10px}
+.pp-compact .pp-gap-row{gap:7px;padding:6px 0}
+.pp-compact .pp-gap-row input,.pp-compact .pp-gap-row select{min-height:30px}
+@media(max-width:760px){
+  .section-head h1{font-size:20px !important}
+  .panel{padding:12px}
+}
+@media(max-width:560px){
+  body{font-size:12px}
+  .section-head h1{font-size:19px !important}
+  .topbar h2{font-size:16px !important}
+  .panel h3,.panel-title h3{font-size:14px !important}
+  .panel{padding:10px;margin-bottom:9px}
+  th,td{padding:7px !important}
+  input,select,textarea{font-size:12px !important}
+}
