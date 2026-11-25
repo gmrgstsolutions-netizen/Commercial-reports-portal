@@ -435,14 +435,16 @@ function ProductWiseDispatchView({data}) {
     add(label,row);
   }
   if (data?.clinker) add("Clinker",data.clinker);
-  const rows=[...grouped.values()].sort((a,b)=>a.product.localeCompare(b.product));
-  const totals=rows.reduce((t,r)=>({on_date_qty:t.on_date_qty+r.on_date_qty,mtd_qty:t.mtd_qty+r.mtd_qty,ytd_qty:t.ytd_qty+r.ytd_qty}),{on_date_qty:0,mtd_qty:0,ytd_qty:0});
+  const clinker=grouped.get("Clinker")||{product:"Clinker",on_date_qty:0,mtd_qty:0,ytd_qty:0};
+  const rows=[...grouped.values()].filter(r=>r.product!=="Clinker").sort((a,b)=>a.product.localeCompare(b.product));
+  const cementTotals=rows.reduce((t,r)=>({on_date_qty:t.on_date_qty+r.on_date_qty,mtd_qty:t.mtd_qty+r.mtd_qty,ytd_qty:t.ytd_qty+r.ytd_qty}),{on_date_qty:0,mtd_qty:0,ytd_qty:0});
   return <div className="panel"><div className="panel-title"><h3>Product-wise Dispatch Summary</h3><span className="pill">{data?.report_date||""} · MT</span></div>
     <div className="table-scroll"><table><thead><tr><th>Sl. No.</th><th>Product</th><th className="num">On Date (MT)</th><th className="num">MTD (MT)</th><th className="num">YTD (MT)</th></tr></thead><tbody>
       {rows.map((r,i)=><tr key={r.product}><td>{i+1}</td><td><b>{r.product}</b></td><td className="num">{fmt(r.on_date_qty)}</td><td className="num">{fmt(r.mtd_qty)}</td><td className="num">{fmt(r.ytd_qty)}</td></tr>)}
-      <tr className="total"><td colSpan="2">Grand Total</td><td className="num">{fmt(totals.on_date_qty)}</td><td className="num">{fmt(totals.mtd_qty)}</td><td className="num">{fmt(totals.ytd_qty)}</td></tr>
+      <tr className="total"><td colSpan="2">Cement Grand Total</td><td className="num">{fmt(cementTotals.on_date_qty)}</td><td className="num">{fmt(cementTotals.mtd_qty)}</td><td className="num">{fmt(cementTotals.ytd_qty)}</td></tr>
+      <tr className="total"><td colSpan="2">Clinker Total (Separate)</td><td className="num">{fmt(clinker.on_date_qty)}</td><td className="num">{fmt(clinker.mtd_qty)}</td><td className="num">{fmt(clinker.ytd_qty)}</td></tr>
     </tbody></table></div>
-    <p className="footnote">Product totals are grouped using the approved mapping: OPC-related to OPC53 Bag, OPC53B to OPC53 Bulk, PPC-related to PPC Bag, PPCB to PPC Bulk, PPCL as PPC Laminated, and CLN/CLINKER as Clinker. Source: the authenticated State/District report’s product totals.</p>
+    <p className="footnote">Cement Grand Total includes OPC and PPC dispatch products only. Clinker is shown separately and is not added to the cement total. Product mapping: OPC53B = OPC53 Bulk, OPC-related = OPC53 Bag, PPCB = PPC Bulk, PPCL = PPC Laminated, and other PPC-related codes = PPC Bag.</p>
   </div>;
 }
 
