@@ -113,15 +113,14 @@ export default function PackingPlantConnected({supabase,session,profile,shiftInc
     finally{setSaving(false);}
   }
 
-  return <section className="pp-prototype">
-    <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Production &amp; Running Hours</h1><p className="muted">Shift production, running intervals, stoppages and shift staff</p></div><span className="pill">{canEdit?"Uploader access":"Read-only access"}</span></div>
-    <div className="panel"><div className="mapping-grid pp-shift-controls">
-      <label>Shift business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-      <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00 next day</option></select></label>
-      <div className="pp-shift-window"><span>Business date</span><b>{date}</b><small>C shift remains assigned to its starting date</small></div>
-    </div>{shift==="C"&&<div className="alert">C Shift is displayed as {date} 22:00–24:00 and the following date 00:00–06:00. Both parts belong to this business date.</div>}</div>
-    <div className="panel"><div className="mapping-grid pp-shift-controls"><label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · {p.tph} TPH</option>)}</select></label><div className="pp-shift-window"><span>Selected unit</span><b>{selectedTimeline.name}</b><small>Enter running hours, stoppages and production for this unit only.</small></div></div></div>
-    <div className="stats"><div className="stat"><span>{selectedTimeline.name} production (MT)</span><b>{selectedTimeline.qty.toFixed(2)}</b></div><div className="stat"><span>Expected production (MT)</span><b>{selectedTimeline.expected.toFixed(2)}</b></div><div className="stat"><span>Unit utilisation</span><b>{selectedTimeline.expected?(selectedTimeline.qty/selectedTimeline.expected*100).toFixed(1)+"%":"N/A"}</b></div></div>
+  return <section className="pp-prototype pp-compact">
+    <div className="section-head"><div><span className="eyebrow">PACKING PLANT · LIVE DATABASE</span><h1>Production &amp; Running Hours</h1><p className="muted">Shift production, running intervals, stoppages and staff</p></div><span className="pill">{canEdit?"Uploader access":"Read-only access"}</span></div>
+    <div className="panel pp-control-panel"><div className="mapping-grid pp-shift-controls">
+      <label>Business date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
+      <label>Shift<select value={shift} onChange={e=>setShift(e.target.value)}><option value="A">A Shift · 06:00–14:00</option><option value="B">B Shift · 14:00–22:00</option><option value="C">C Shift · 22:00–06:00 next day</option></select><small className="pp-control-hint">C shift is assigned to its starting date.</small></label>
+      <label>Select Packer / Loading Unit<select value={selectedArea} onChange={e=>setSelectedArea(e.target.value)}>{RUNNING_AREAS.map(p=><option key={p.id} value={p.id}>{p.name} · {p.tph} TPH</option>)}</select></label>
+    </div>{shift==="C"&&<div className="alert">C Shift covers {date} 22:00–24:00 and the following date 00:00–06:00.</div>}</div>
+    <div className="stats pp-compact-stats"><div className="stat"><span>{selectedTimeline.name} production (MT)</span><b>{selectedTimeline.qty.toFixed(2)}</b></div><div className="stat"><span>Expected production (MT)</span><b>{selectedTimeline.expected.toFixed(2)}</b></div><div className="stat"><span>Unit utilisation</span><b>{selectedTimeline.expected?(selectedTimeline.qty/selectedTimeline.expected*100).toFixed(1)+"%":"N/A"}</b></div></div>
     {timeline.filter(p=>p.id===selectedArea).map(p=><div className="panel" key={p.id}>
       <div className="panel-title"><h3>{p.name} · {p.tph} TPH</h3><span className="pill">{p.overlap?"Check intervals":"Intervals valid"}</span></div>
       <div className="mapping-grid pp-production-grid"><label>PPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.PPC||""} onChange={e=>updateQty(p.id,"PPC",e.target.value)} disabled={!canEdit}/></label><label>OPC production (MT)<input type="number" min="0" step="0.01" value={production[p.id]?.OPC||""} onChange={e=>updateQty(p.id,"OPC",e.target.value)} disabled={!canEdit}/></label><div className="pp-kpi"><span>Combined utilisation (OPC + PPC)</span><b>{p.util===null?"N/A":p.util.toFixed(1)+"%"}</b></div></div>
