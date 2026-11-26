@@ -10,6 +10,7 @@ const date = v => {
 };
 const text = v => v===null||v===undefined||v==="" ? "—" : String(v);
 const pct = (v,t) => n(t) ? (n(v)*100/n(t)).toFixed(2)+"%" : "—";
+const monthLabel = v => { if(!v) return "—"; const d=new Date(String(v).slice(0,10)+"T00:00:00"); return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString("en-IN",{month:"short",year:"numeric"}); };
 const Panel = ({title,sub,children}) => <div className="panel cr-panel"><div className="panel-title"><h3>{title}</h3>{sub&&<span className="pill">{sub}</span>}</div>{children}</div>;
 function Table({headers,rows,totals,firstLeft=1,small=false}) {
   return <div className="table-scroll cr-scroll"><table className={small?"cr-table cr-small":"cr-table"}><thead><tr>{headers.map((h,i)=><th key={i} className={i>=firstLeft?"num":""}>{h}</th>)}</tr></thead><tbody>
@@ -21,7 +22,7 @@ function Title({children,sub}) { return <div className="cr-report-title"><b>{chi
 
 function ProductWise({data}) {
   const raw=data?.products||[];
-  const groups=[["OPC",raw.filter(x=>String(x.product_code||"").toUpperCase().startsWith("OPC"))],["PPC",raw.filter(x=>String(x.product_code||"").toUpperCase().startsWith("PPC"))]];
+  const groups=[["OPC",raw.filter(x=>String(x.product_code||"").toUpperCase().startsWith("OPC"))],["PPC",raw.filter(x=>String(x.product_code||"").toUpperCase().startsWith("PPC"))],["OTHER",raw.filter(x=>!String(x.product_code||"").toUpperCase().startsWith("OPC")&&!String(x.product_code||"").toUpperCase().startsWith("PPC"))]];
   const totals=rows=>rows.reduce((t,r)=>({d:t.d+n(r.on_date_qty),m:t.m+n(r.mtd_qty),y:t.y+n(r.ytd_qty)}),{d:0,m:0,y:0});
   const clinker=data?.clinker||{};
   const all=totals(raw);
@@ -74,13 +75,13 @@ function Invoice({data}) {
  const rows=data?.rows||[], keys=["invoice_no","dispatch_date","customer_name","product_code","sales_channel","oa_no","packslip_no","vehicle_no","shipping_state","district_name","transporter_name","qty","taxable_value","igst","cgst","sgst","total_tax","total_value"];
  const headers=["InvNo","Dispatch date","Customer name / Warehouse","Item code","Sales channel","OA No","Packslip No","Vehicle No","Shipping state","District","Transporter name","Qty","Taxable value","IGST","CGST","SGST","Total tax","Total value"];
  const totals=keys.slice(11).map(k=>rows.reduce((a,r)=>a+n(r[k]),0));
- return <Panel title="INVOICE-WISE DISPATCH DETAILS" sub={(data?.rows||[]).length+" rows"}><Table headers={headers} firstLeft={11} rows={rows.map(r=>keys.map((k,i)=>i<11?text(r[k]):fmt(r[k])))} totals={["","","","","","","","","","","Grand Total",...totals.map(fmt)]} small/></Panel>;
+ return <Panel title="INVOICE-WISE DISPATCH DETAILS" sub={(data?.rows||[]).length+" rows"}><Table headers={headers} firstLeft={11} rows={rows.map(r=>keys.map((k,i)=>i<11?text(k==="customer_name"?(r.customer_name||r.warehouse):r[k]):fmt(r[k])))} totals={["","","","","","","","","","","Grand Total",...totals.map(fmt)]} small/></Panel>;
 }
 function Trade({data}) {
  const regions=data?.regions||[], grand=regions.reduce((a,r)=>a+n(r.grand_total),0), rows=[];const states=[...new Set(regions.map(r=>r.state_name||""))];const keys=["dlr","dtr","godown","ins","msp","grand_total"];
  for(const st of states){const group=regions.filter(r=>(r.state_name||"")===st);const sub=keys.map(k=>group.reduce((a,r)=>a+n(r[k]),0));group.forEach((r,i)=>rows.push([i===0?text(st):"",text(r.district_name),...keys.map(k=>fmt(r[k])),pct(r.grand_total,grand)]));rows.push(["",<b>{st} Total</b>,...sub.map(fmt),pct(sub[5],grand)]);}
  const totals=keys.map(k=>regions.reduce((a,r)=>a+n(r[k]),0));
- return <Panel title="TRADE / NON-TRADE DISPATCHES" sub={data?.month||""}><Table headers={["Month","Shippingstate","District","DLR","DTR","GODOWN","INS","MSP","Grand Total","Dispatch Share %"]} firstLeft={3} rows={rows.map((r,i)=>[i===0?date(data?.month):"",...r])} totals={[date(data?.month)+" Total","", "",...totals.map(fmt),"100.00%"]}/></Panel>;
+ return <Panel title="TRADE / NON-TRADE DISPATCHES" sub={monthLabel(data?.month)}><Table headers={["Month","Shippingstate","District","DLR","DTR","GODOWN","INS","MSP","Grand Total","Dispatch Share %"]} firstLeft={3} rows={rows.map((r,i)=>[i===0?monthLabel(data?.month):"",...r])} totals={[date(data?.month)+" Total","", "",...totals.map(fmt),"100.00%"]}/></Panel>;
 }
 function MonthlyYearly({data}) {
  const rows=data?.rows||[],keys=["opc_bulk","opc_packed","opc_total","ppc_bulk","ppc_packed","ppc_laminate","ppc_total","total_cement","clinker"];
@@ -114,7 +115,7 @@ function StatusRows({rows}) {
 }
 function WeighbridgeProduct({data}) {
  const rows=data?.completed_products||[],outside=data?.outside_main_gate||[],under=data?.trucks_under_loading||[];
- return <Panel title="CONSOLIDATED PRODUCT SUMMARY" sub={date(data?.report_date)}><div className="cr-section"><h4>COMPLETED WEIGHMENTS</h4><Table headers={["Material","On Date Qty","On Date Trucks","MTD Qty","MTD Trucks","YTD Qty","YTD Trucks"]} rows={rows.map(r=>[text(r.material),fmt(r.on_date_qty),fmt(r.on_date_trucks),fmt(r.mtd_qty),fmt(r.mtd_trucks),fmt(r.ytd_qty),fmt(r.ytd_trucks)])}/></div><div className="cr-section"><h4>OUTSIDE MAIN GATE</h4><StatusRows rows={outside.map(r=>({...r,category:"cement",qty:0,trucks:r.truck_count}))}/></div><div className="cr-section"><h4>TRUCKS UNDER LOADING</h4><Table headers={["Material","Document Qty","Truck Count"]} rows={under.map(r=>[text(r.material),fmt(r.document_qty),fmt(r.truck_count)])}/></div></Panel>;
+ return <Panel title="CONSOLIDATED PRODUCT SUMMARY" sub={date(data?.report_date)}><div className="cr-section"><h4>COMPLETED WEIGHMENTS</h4><Table headers={["Material","On Date Qty","On Date Trucks","MTD Qty","MTD Trucks","YTD Qty","YTD Trucks"]} rows={rows.map(r=>[text(r.material),fmt(r.on_date_qty),fmt(r.on_date_trucks),fmt(r.mtd_qty),fmt(r.mtd_trucks),fmt(r.ytd_qty),fmt(r.ytd_trucks)])}/></div><div className="cr-section"><h4>OUTSIDE MAIN GATE</h4><Table headers={["Material","Truck Count"]} rows={outside.map(r=>[text(r.material),fmt(r.truck_count)])}/></div><div className="cr-section"><h4>TRUCKS UNDER LOADING</h4><Table headers={["Material","Document Qty","Truck Count"]} rows={under.map(r=>[text(r.material),fmt(r.document_qty),fmt(r.truck_count)])}/></div></Panel>;
 }
 function RawMaterials({data}) {
  const keys=["pass_no","rf_code","vehicle_no","dc_no","dc_date","dc_qty","material","supplier","from_place","to_place","transporter","shift","first_weight","first_date","first_time","second_weight","second_date","second_time","net_weight","time_diff"];
