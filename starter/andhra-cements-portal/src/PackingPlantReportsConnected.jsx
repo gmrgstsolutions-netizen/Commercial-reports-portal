@@ -85,145 +85,132 @@ export default function PackingPlantReportsConnected({ supabase }) {
     if (reportKey === "daily_stoppage") {
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "Andhra Cements Limited";
-      workbook.subject = "Packing Plant Stoppage Analysis";
-      workbook.title = "Stoppage Analysis Report";
-      workbook.created = new Date();
+      workbook.subject = "Stoppage Analysis Report";
+      workbook.title = "Andhra Cements Limited - Stoppage Analysis";
       const ws = workbook.addWorksheet("Stoppage Analysis", {
-        pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.1, footer: 0.1 } },
-        views: [{ state: "frozen", ySplit: 8 }]
+        pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.2, right: 0.2, top: 0.25, bottom: 0.25, header: 0.1, footer: 0.1 } }
       });
+      ws.properties.defaultRowHeight = 33.95;
       ws.columns = [
-        { key: "margin", width: 3 }, { key: "counter", width: 18 },
-        { key: "date", width: 14 }, { key: "count", width: 14 },
-        { key: "stop", width: 12 }, { key: "restart", width: 12 },
-        { key: "duration", width: 13 }, { key: "reason", width: 34 },
-        { key: "category", width: 22 }, { key: "stoppage", width: 19 },
-        { key: "running", width: 17 }, { key: "production", width: 18 }
+        { key: "margin", width: 5.85 }, { key: "counter", width: 20.85 },
+        { key: "date", width: 16 }, { key: "count", width: 16 },
+        { key: "stop", width: 10 }, { key: "restart", width: 10 },
+        { key: "duration", width: 13.28 }, { key: "reason", width: 34.28 },
+        { key: "category", width: 33.42 }, { key: "stoppage", width: 25.85 },
+        { key: "running", width: 18.28 }, { key: "production", width: 20.85 }
       ];
+      ws.views = [{ showGridLines: false }];
       ws.mergeCells("B2:B5");
-      ws.mergeCells("C2:L2");
-      ws.mergeCells("C3:L3");
-      ws.mergeCells("C4:L4");
-      ws.mergeCells("C5:L5");
+      ws.mergeCells("C2:L2"); ws.mergeCells("C3:L3");
+      ws.mergeCells("C4:L4"); ws.mergeCells("C5:L5");
       ws.getCell("C2").value = "ANDHRA CEMENTS LIMITED";
       ws.getCell("C3").value = "DACHEPALLI";
       ws.getCell("C4").value = "STOPPAGE ANALYSIS REPORT";
-      ws.getCell("C5").value = fromDate === toDate
-        ? "Date: " + new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB")
-        : "Period: " + new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB") + " to " + new Date(toDate + "T00:00:00").toLocaleDateString("en-GB");
-      ws.getRow(2).height = 25; ws.getRow(3).height = 22; ws.getRow(4).height = 24; ws.getRow(5).height = 22;
-      for (const cell of ["C2","C3","C4","C5"]) {
-        ws.getCell(cell).alignment = { horizontal: "center", vertical: "middle" };
-        ws.getCell(cell).font = { name: "Tahoma", bold: true, color: { argb: "FF202020" } };
-      }
-      ws.getCell("C2").font = { name: "Tahoma", size: 16, bold: true, color: { argb: "FF202020" } };
-      ws.getCell("C3").font = { name: "Tahoma", size: 12, bold: true };
-      ws.getCell("C4").font = { name: "Tahoma", size: 14, bold: true, color: { argb: "FF17365D" } };
-      ws.getCell("C5").font = { name: "Tahoma", size: 10, bold: true };
-      const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
-      ws.addImage(imageId, { tl: { col: 1.15, row: 1.15 }, ext: { width: 66, height: 66 } });
-
-      const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
-      const headerRow = ws.getRow(6);
-      headers.forEach((v,i) => {
-        const cell = headerRow.getCell(i+2);
-        cell.value = v;
-        cell.font = { name: "Tahoma", size: 9, bold: true, color: { argb: "FFFFFFFF" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF24476B" } };
-        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-        cell.border = { top: { style: "thin", color: { argb: "FF263746" } }, bottom: { style: "thin", color: { argb: "FF263746" } }, left: { style: "thin", color: { argb: "FF263746" } }, right: { style: "thin", color: { argb: "FF263746" } } };
-      });
-      headerRow.height = 38;
-      for (let col=2; col<=12; col++) ws.mergeCells(6,col,8,col);
-      const order = { "Packer 1": 1, "Bulk Loading": 2, "Packer 2": 3, "Packer 3": 4 };
-      const sortedGroups = [...stoppageGroups].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
-      const productionTotalCells = [];
-      let rowNo = 9;
-      const toTimeFraction = (v) => {
-        if (v === null || v === undefined || v === "") return null;
-        if (typeof v === "number") return v >= 0 && v < 1 ? v : null;
-        if (v instanceof Date) return (v.getHours()*3600+v.getMinutes()*60+v.getSeconds())/86400;
-        const m = String(v).match(/(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);
-        return m ? (Number(m[1])*3600+Number(m[2])*60+Number(m[3]||0))/86400 : v;
+      const dateLabel = (value) => {
+        const d = new Date(value + "T00:00:00");
+        return d.toLocaleDateString("en-GB").replace(/\\//g, ".");
       };
-      for (const group of sortedGroups) {
-        const details = group.rows.filter(x => x.stop_number !== null && x.stop_number !== undefined).sort((a,b) => Number(a.stop_number)-Number(b.stop_number));
+      ws.getCell("C5").value = fromDate === toDate ? "Date:" + dateLabel(fromDate) : "Period: " + dateLabel(fromDate) + " to " + dateLabel(toDate);
+      [2,3,4,5].forEach(r => {
+        ws.getRow(r).height = 20.25;
+        const c = ws.getCell("C"+r);
+        c.font = { name: "Calibri", size: r===5?11:14, bold: true, color: { argb: r===4 ? "FFC00000" : "FF000000" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+        c.alignment = { horizontal: r===5 ? "right" : "center", vertical: "middle" };
+        c.border = { top:{style:"thin"},bottom:{style:r===5?"medium":"thin"},left:{style:"thin"},right:{style:"thin"} };
+      });
+      const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
+      ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 225, height: 225 } });
+
+      const headers = ["Stops Counter","Date","STOPs          in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
+      const merges = ["B","C","D","E","F","G","H","I","J","K","L"];
+      merges.forEach(col => ws.mergeCells(col+"6:"+col+"8"));
+      headers.forEach((label,i) => {
+        const cell = ws.getCell(6,i+2);
+        cell.value = label;
+        cell.font = { name: "Calibri", size: 16, bold: true, color: { argb: "FF000000" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7E6E6" } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        cell.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"thin"} };
+      });
+      [6,7,8].forEach(r => ws.getRow(r).height = 28.35);
+
+      const order = { "Packer 1":1, "Bulk Loading":2, "Packer 2":3, "Packer 3":4 };
+      const groups = [...stoppageGroups].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
+      const productionCells = [];
+      let rowNo = 9;
+      const timeValue = (value) => {
+        if (value===null || value===undefined || value==="") return null;
+        if (typeof value==="number") return value>=0 && value<1 ? value : null;
+        if (value instanceof Date) return (value.getHours()*3600+value.getMinutes()*60+value.getSeconds())/86400;
+        const m=String(value).match(/(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);
+        return m ? (Number(m[1])*3600+Number(m[2])*60+Number(m[3]||0))/86400 : null;
+      };
+      const thinBorder = { top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"} };
+      for (const group of groups) {
+        const details = group.rows.filter(x => x.stop_number!==null && x.stop_number!==undefined).sort((a,b)=>Number(a.stop_number)-Number(b.stop_number));
         const summary = group.rows.find(x => Number(x.day_stoppage_hours)||Number(x.day_running_hours)||Number(x.day_production_mt)) || group.rows[0] || {};
-        const stopTotal = Number(summary.day_stoppage_hours)||0;
-        const runTotal = Number(summary.day_running_hours)||0;
-        const prodTotal = Number(summary.day_production_mt)||0;
-        const items = details.length ? details : [null];
-        const sectionRow = ws.getRow(rowNo);
+        const section = ws.getRow(rowNo);
         ws.mergeCells(rowNo,2,rowNo,12);
-        sectionRow.getCell(2).value = group.asset === "Packer 3" ? "PACKER -3" : group.asset === "Bulk Loading" ? "Bulk" : group.asset.toUpperCase().replace("PACKER ","PACKER-");
-        sectionRow.getCell(2).font = { name: "Tahoma", size: 11, bold: true, color: { argb: "FF17365D" } };
-        sectionRow.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
-        sectionRow.getCell(2).alignment = { vertical: "middle", horizontal: "left" };
-        sectionRow.height = 23;
+        const label = group.asset==="Bulk Loading" ? "Bulk" : group.asset==="Packer 3" ? "PACKER -3" : group.asset.toUpperCase().replace("PACKER ","PACKER-");
+        section.getCell(2).value = label;
+        section.getCell(2).font = { name:"Calibri",size:16,bold:false,color:{argb:"FF000000"} };
+        section.getCell(2).fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFE7E6E6"} };
+        section.getCell(2).alignment = { horizontal:"center",vertical:"middle" };
+        section.getCell(2).border = { top:{style:"medium"},bottom:{style:"thin"},left:{style:"medium"},right:{style:"medium"} };
+        section.height = 33.95;
         rowNo++;
-        const firstDataRow = rowNo;
-        for (let i=0; i<items.length; i++) {
-          const item = items[i];
+        const items = details.length ? details : [null];
+        const first = rowNo;
+        items.forEach((item,index) => {
           const row = ws.getRow(rowNo);
-          row.getCell(2).value = item ? (item.stop_number ?? i+1) : "";
-          row.getCell(3).value = group.date ? new Date(group.date + "T00:00:00") : "";
-          row.getCell(4).value = details.length;
-          row.getCell(5).value = item ? toTimeFraction(item.stop_time) : "";
-          row.getCell(6).value = item ? toTimeFraction(item.start_time) : "";
+          row.getCell(2).value = item ? (item.stop_number??index+1) : "";
+          row.getCell(3).value = group.date ? new Date(group.date+"T00:00:00") : "";
+          row.getCell(4).value = "";
+          row.getCell(5).value = item ? timeValue(item.stop_time) : "";
+          row.getCell(6).value = item ? timeValue(item.start_time) : "";
           row.getCell(7).value = item && Number.isFinite(Number(item.duration_hours)) ? Number(item.duration_hours)/24 : "";
-          row.getCell(8).value = item ? (item.reason ?? "") : "No stoppage recorded";
-          row.getCell(9).value = item ? (item.stoppage_classification ?? "") : "";
-          row.eachCell({ includeEmpty: true }, cell => {
-            if (cell.col < 2 || cell.col > 12) return;
-            cell.font = { name: "Tahoma", size: 9, color: { argb: "FF202020" } };
-            cell.alignment = { vertical: "middle", horizontal: [2,3,4,5,6,7,10,11,12].includes(cell.col) ? "center" : "left", wrapText: true };
-            cell.border = { top: { style: "thin", color: { argb: "FF9EADBA" } }, bottom: { style: "thin", color: { argb: "FF9EADBA" } }, left: { style: "thin", color: { argb: "FF9EADBA" } }, right: { style: "thin", color: { argb: "FF9EADBA" } } };
-            if (i % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F6F9" } };
-          });
-          row.getCell(3).numFmt = "dd.mm.yyyy";
-          row.getCell(5).numFmt = "hh:mm"; row.getCell(6).numFmt = "hh:mm"; row.getCell(7).numFmt = "[h]:mm";
-          row.height = 25;
+          row.getCell(8).value = item ? (item.reason??"") : "No stoppage recorded";
+          row.getCell(9).value = item ? (item.stoppage_classification??"") : "";
+          for(let col=2;col<=12;col++){
+            const cell=row.getCell(col);
+            cell.font={name:"Calibri",size:16,bold:false,color:{argb:"FF000000"}};
+            cell.alignment={horizontal:"center",vertical:"center",wrapText:true};
+            cell.border=thinBorder;
+          }
+          row.getCell(3).numFmt="dd.mm.yyyy";
+          row.getCell(5).numFmt="hh:mm"; row.getCell(6).numFmt="hh:mm"; row.getCell(7).numFmt="[h]:mm";
+          row.height=33.95;
           rowNo++;
+        });
+        const last = rowNo-1;
+        for(const col of [10,11,12]) ws.mergeCells(first,col,last,col);
+        ws.getCell(first,10).value=(Number(summary.day_stoppage_hours)||0)/24;
+        ws.getCell(first,11).value=(Number(summary.day_running_hours)||0)/24;
+        ws.getCell(first,12).value=Number(summary.day_production_mt)||0;
+        ws.getCell(first,10).numFmt="[h]:mm"; ws.getCell(first,11).numFmt="[h]:mm"; ws.getCell(first,12).numFmt="0.00";
+        for(const col of [10,11,12]){
+          const cell=ws.getCell(first,col);
+          cell.font={name:"Calibri",size:15,bold:false,color:{argb:"FF000000"}};
+          cell.alignment={horizontal:"center",vertical:"center",wrapText:true};
+          cell.border=thinBorder;
         }
-        const lastDataRow = rowNo - 1;
-        for (const col of [10,11,12]) ws.mergeCells(firstDataRow,col,lastDataRow,col);
-        ws.getCell(firstDataRow,10).value = stopTotal/24;
-        ws.getCell(firstDataRow,11).value = runTotal/24;
-        ws.getCell(firstDataRow,12).value = prodTotal;
-        ws.getCell(firstDataRow,10).numFmt = "[h]:mm";
-        ws.getCell(firstDataRow,11).numFmt = "[h]:mm";
-        ws.getCell(firstDataRow,12).numFmt = "#,##0.00";
-        for (const col of [10,11,12]) {
-          const cell=ws.getCell(firstDataRow,col);
-          cell.font={name:"Tahoma",size:9,bold:true,color:{argb:"FF202020"}};
-          cell.alignment={horizontal:"center",vertical:"middle"};
-          cell.border={top:{style:"thin",color:{argb:"FF9EADBA"}},bottom:{style:"thin",color:{argb:"FF9EADBA"}},left:{style:"thin",color:{argb:"FF9EADBA"}},right:{style:"thin",color:{argb:"FF9EADBA"}}};
-        }
-        productionTotalCells.push("L"+firstDataRow);
+        productionCells.push("L"+first);
         rowNo++;
       }
-      rowNo++;
-      ws.mergeCells(rowNo,10,rowNo,11);
-      ws.getCell(rowNo,10).value = "TOTAL PRODUCTION (MT)";
-      ws.getCell(rowNo,10).font = { name: "Tahoma", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
-      ws.getCell(rowNo,10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF24476B" } };
-      ws.getCell(rowNo,10).alignment = { horizontal: "right", vertical: "middle" };
-      ws.getCell(rowNo,12).value = productionTotalCells.length ? { formula: "SUM(" + productionTotalCells.join(",") + ")" } : 0;
-      ws.getCell(rowNo,12).numFmt = "#,##0.00";
-      ws.getCell(rowNo,12).font = { name: "Tahoma", size: 10, bold: true, color: { argb: "FF202020" } };
-      ws.getCell(rowNo,12).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE699" } };
-      ws.getCell(rowNo,12).alignment = { horizontal: "center", vertical: "middle" };
-      ws.getRow(rowNo).height = 25;
-      ws.autoFilter = undefined;
-      ws.pageSetup.printArea = "B2:L" + rowNo;
-      ws.pageSetup.horizontalCentered = true;
-      ws.headerFooter.oddFooter = "&CAndhra Cements Limited - Packing Plant";
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "Stoppage_Analysis_Report_" + fromDate + "_to_" + toDate + ".xlsx";
+      const totalRow = rowNo+2;
+      ws.getCell(totalRow,12).value = productionCells.length ? { formula:"SUM("+productionCells.join(",")+")" } : 0;
+      ws.getCell(totalRow,12).font = { name:"Calibri",size:20,bold:false,color:{argb:"FF000000"} };
+      ws.getCell(totalRow,12).numFmt="0.00";
+      ws.getCell(totalRow,12).alignment={horizontal:"center",vertical:"center"};
+      ws.getRow(totalRow).height=28;
+      ws.pageSetup.printArea="B2:L"+totalRow;
+      ws.pageSetup.horizontalCentered=true;
+      const buffer=await workbook.xlsx.writeBuffer();
+      const blob=new Blob([buffer],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url; link.download="Stoppage_Analysis_Report_"+fromDate+"_to_"+toDate+".xlsx";
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
       return;
     }
