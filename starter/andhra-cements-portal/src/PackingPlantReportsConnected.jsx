@@ -250,7 +250,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       <div className="date-tools">
         <label>From Date<input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} /></label>
         <label>To Date<input type="date" value={toDate} onChange={e => setToDate(e.target.value)} /></label>
-        <button className="secondary" onClick={loadReport} disabled={busy}><RefreshCw size={16}/>Refresh</button>{!busy && rows.length > 0 && <button className="secondary" onClick={downloadExcel}>Download Excel</button>}
+        <button className="secondary" onClick={() => loadReport()} disabled={busy}><RefreshCw size={16}/>Refresh</button>{!busy && rows.length > 0 && <button className="secondary" onClick={downloadExcel}>Download Excel</button>}
       </div>
     </div>
     <div className="panel">
