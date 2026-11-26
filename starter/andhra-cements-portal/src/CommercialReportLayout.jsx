@@ -12,8 +12,8 @@ const text = v => v===null||v===undefined||v==="" ? "—" : String(v);
 const pct = (v,t) => n(t) ? (n(v)*100/n(t)).toFixed(2)+"%" : "—";
 const monthLabel = v => { if(!v) return "—"; const d=new Date(String(v).slice(0,10)+"T00:00:00"); return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString("en-IN",{month:"short",year:"numeric"}); };
 const Panel = ({title,sub,children}) => <div className="panel cr-panel"><div className="panel-title"><h3>{title}</h3>{sub&&<span className="pill">{sub}</span>}</div>{children}</div>;
-function Table({headers,rows,totals,firstLeft=1,small=false}) {
-  return <div className="table-scroll cr-scroll"><table className={small?"cr-table cr-small":"cr-table"}><thead><tr>{headers.map((h,i)=><th key={i} className={i>=firstLeft?"num":""}>{h}</th>)}</tr></thead><tbody>
+function Table({headers,rows,totals,firstLeft=1,small=false,groups=null}) {
+  return <div className="table-scroll cr-scroll"><table className={small?"cr-table cr-small":"cr-table"}><thead>{groups&&<tr className="cr-group-head">{groups.map((g,i)=><th key={i} colSpan={g.span}>{g.label}</th>)}</tr>}<tr>{headers.map((h,i)=><th key={i} className={i>=firstLeft?"num":""}>{h}</th>)}</tr></thead><tbody>
     {rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j} className={j>=firstLeft?"num":""}>{v===null||v===undefined?"—":v}</td>)}</tr>)}
     {totals&&<tr className="total">{totals.map((v,i)=><td key={i} className={i>=firstLeft?"num":""}>{v??""}</td>)}</tr>}
   </tbody></table></div>;
@@ -87,7 +87,7 @@ function MonthlyYearly({data}) {
  const rows=data?.rows||[],keys=["opc_bulk","opc_packed","opc_total","ppc_bulk","ppc_packed","ppc_laminate","ppc_total","total_cement","clinker"];
  const headers=["Month","OPC Bulk","OPC Packed","OPC Total","PPC Bulk","PPC Packed","PPC Laminate","PPC Total","Total Cement","Clinker"];
  const totals=data?.totals||{};
- return <Panel title={data?.title||"DISPATCH SUMMARY"} sub={"FY "+data?.fy_start+"-"+String(data?.fy_end||"").slice(-2)}><Table headers={headers} firstLeft={1} rows={rows.map(r=>[text(r.month_label),...keys.map(k=>fmt(r[k]))])} totals={["Grand Total",...keys.map(k=>fmt(totals[k]))]}/></Panel>;
+ return <Panel title={data?.title||"DISPATCH SUMMARY"} sub={"FY "+data?.fy_start+"-"+String(data?.fy_end||"").slice(-2)}><Table headers={headers} firstLeft={1} groups={[{label:"Month",span:1},{label:"OPC",span:2},{label:"OPC TOTAL",span:1},{label:"PPC",span:3},{label:"PPC TOTAL",span:1},{label:"TOTAL CEMENT",span:1},{label:"CLINKER",span:1}]} rows={rows.map(r=>[text(r.month_label),...keys.map(k=>fmt(r[k]))])} totals={["Total",...keys.map(k=>fmt(totals[k]))]}/></Panel>;
 }
 function ScrapSummary({data}) {const rows=data?.rows||[];const t=rows.reduce((a,r)=>({d:a.d+n(r.on_date_qty),m:a.m+n(r.mtd_qty),y:a.y+n(r.ytd_qty)}),{d:0,m:0,y:0});return <Panel title="SCRAP SALES REPORT" sub={date(data?.report_date)}><Table headers={["Item","On Date","MTD","YTD"]} rows={rows.map(r=>[text(r.item_code),fmt(r.on_date_qty),fmt(r.mtd_qty),fmt(r.ytd_qty)])} totals={["Grand Total",fmt(t.d),fmt(t.m),fmt(t.y)]}/></Panel>}
 function ScrapInvoice({data}) {
@@ -104,7 +104,7 @@ function Weighbridge({data}) {
  const labels=[["raw","UN-LOADING COMPLETED","A","Raw Material Total"],["cement","LOADING COMPLETED","B","Cement Total"],["clinker","LOADING COMPLETED","C","Clinker"]];
  const grand=[0,0,0,0,0];
  return <Panel title="WEIGHBRIDGE REPORT" sub={date(data?.report_date)}><Title sub={"Completed: "+date(data?.completed_source_date||data?.report_date)+" · Under Loading: "+date(data?.pending_source_date||data?.report_date)+" · Outside: "+date(data?.outside_source_date||data?.report_date)}>WEIGHBRIDGE REPORT</Title>
-  {labels.map(([cat,title,letter,totalLabel])=>{const items=[...map.values()].filter(x=>x.category===cat);const sum=[0,0,0,0,0];items.forEach(x=>x.v.forEach((v,i)=>{sum[i]+=v;grand[i]+=v;}));return <div className="cr-section" key={cat}><h4>{title}</h4><Table headers={["SL NO.","PARTICULARS","UOM","QTY","NO. OF TRUCKS","QTY","NO. OF TRUCKS","NO. OF TRUCKS"]} firstLeft={3} rows={items.filter(x=>x.v.some(v=>Math.abs(v)>0.000001)).map((x,i)=>[i+1,x.material,x.uom,fmt(x.v[0]),x.v[1]||"—",fmt(x.v[2]),x.v[3]||"—",x.v[4]||"—"])} totals={[letter,totalLabel,"MT",fmt(sum[0]),sum[1]||"—",fmt(sum[2]),sum[3]||"—",sum[4]||"—"]}/></div>;})}
+  {labels.map(([cat,title,letter,totalLabel])=>{const items=[...map.values()].filter(x=>x.category===cat);const sum=[0,0,0,0,0];items.forEach(x=>x.v.forEach((v,i)=>{sum[i]+=v;grand[i]+=v;}));return <div className="cr-section" key={cat}><h4>{title}</h4><Table headers={["SL NO.","PARTICULARS","UOM","QTY","NO. OF TRUCKS","QTY","NO. OF TRUCKS","NO. OF TRUCKS"]} firstLeft={3} groups={[{label:"",span:3},{label:"COMPLETED",span:2},{label:"UNDER LOADING",span:2},{label:"OUTSIDE",span:1}]} rows={items.filter(x=>x.v.some(v=>Math.abs(v)>0.000001)).map((x,i)=>[i+1,x.material,x.uom,fmt(x.v[0]),x.v[1]||"—",fmt(x.v[2]),x.v[3]||"—",x.v[4]||"—"])} totals={[letter,totalLabel,"MT",fmt(sum[0]),sum[1]||"—",fmt(sum[2]),sum[3]||"—",sum[4]||"—"]}/></div>;})}
   <div className="cr-section"><Table headers={["SL NO.","PARTICULARS","UOM","QTY","NO. OF TRUCKS","QTY","NO. OF TRUCKS","NO. OF TRUCKS"]} rows={[]} totals={["","Grand Total (A+B+C)","MT",fmt(grand[0]),grand[1]||"—",fmt(grand[2]),grand[3]||"—",grand[4]||"—"]}/></div>
   {data?.shift_incharge_name&&<p className="cr-shift">WEIGH BRIDGE SHIFT INCHARGE: {String(data.shift_incharge_name).toUpperCase()}</p>}
  </Panel>;
