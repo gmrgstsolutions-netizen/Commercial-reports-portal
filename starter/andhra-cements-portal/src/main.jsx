@@ -335,7 +335,7 @@ function App() {
         <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
         {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
         <button className={tab==="Packing Bags Receipts"?"nav active":"nav"} onClick={()=>setTab("Packing Bags Receipts")}><History size={17}/>Packing Bags Receipts</button>
-        {isAdmin && <button className={tab==="Consumption & Damages Upload"?"nav active":"nav"} onClick={()=>setTab("Consumption & Damages Upload")}><UploadCloud size={17}/>Upload Consumption &amp; Damages</button>
+        {isAdmin && <button className={tab==="Consumption & Damages Upload"?"nav active":"nav"} onClick={()=>setTab("Consumption & Damages Upload")}><UploadCloud size={17}/>Upload Consumption &amp; Damages</button>}
         {canUpload && <button className={tab==="Upload Data"?"nav active":"nav"} onClick={()=>setTab("Upload Data")}><UploadCloud size={17}/>Upload Data</button>}
         <button className={tab==="Upload History"?"nav active":"nav"} onClick={()=>setTab("Upload History")}><History size={17}/>Upload History</button>
       </>}
