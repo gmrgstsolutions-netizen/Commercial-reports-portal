@@ -11,13 +11,24 @@ function isoDate(v) {
   return m?m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0"):"";
 }
 const norm=s=>String(s??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const bagNorm=s=>norm(s).replace(/bags?$/,"").replace(/packingmaterial$/,"");
+const localIsoToday=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")};
+const bagAliases={
+  OPC_YELLOW:["opcyellow","opcyellowbag","opcyellowbags"],
+  OPC_WHITE:["opcwhite","opcwhitebag","opcwhitebags"],
+  PPC_YELLOW:["ppcyellow","ppcyellowbag","ppcyellowbags"],
+  PPC_WHITE:["ppcwhite","ppcwhitebag","ppcwhitebags"],
+  PPC_LAMINATED_YELLOW:["ppclaminatedyellow","ppclaminatedyellowbag","ppclaminatedyellowbags","ppclmnyellow","ppclmn"],
+  OPC_GREY:["opcgrey","opcgray","opcgreybags","opcgraybags"],
+  PPC_GREY:["ppcgrey","ppcgray","ppcgreybags","ppcgraybags"]
+};
 export default function PackingBagUsageUpload({supabase,bagTypes,isAdmin,onUploaded}) {
   const [file,setFile]=useState(null),[workbook,setWorkbook]=useState(null),[sheet,setSheet]=useState("");
   const [rows,setRows]=useState([]),[headers,setHeaders]=useState([]);
   const [map,setMap]=useState({date:"",bag:"",consumption:"",damages:"",remarks:""});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
   function parseSheet(wb,name) {
-    const data=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:"",raw:true});
+    const data=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:"",raw:true}).filter(r=>Object.values(r).some(v=>String(v??"").trim()!==""));
     const cols=data.length?Object.keys(data[0]):[];
     const find=terms=>cols.find(c=>terms.some(t=>norm(c).includes(t)))||"";
     setRows(data);setHeaders(cols);
@@ -32,11 +43,12 @@ export default function PackingBagUsageUpload({supabase,bagTypes,isAdmin,onUploa
   const mapped=useMemo(()=>rows.map((r,i)=>{
     const date=isoDate(map.date?r[map.date]:"");
     const bagText=String(map.bag?r[map.bag]??"":"").trim();
-    const bag=bagTypes.find(b=>[b.name,b.code].some(x=>String(x??"").trim().toLowerCase()===bagText.toLowerCase()));
+    const key=bagNorm(bagText);
+    const bag=bagTypes.find(b=>[b.name,b.code,...(bagAliases[b.code]||[])].some(x=>bagNorm(x)===key));
     const number=k=>{const raw=String(map[k]?r[map[k]]??"":"").replace(/,/g,"").trim();return raw===""?0:Number(raw);};
     const consumption=number("consumption"),damages=number("damages");
     const errors=[];
-    if(!date||date<"2026-04-01"||date>new Date().toLocaleDateString("en-CA")) errors.push("Date must be between 01-Apr-2026 and today");
+    if(!date||date<"2026-04-01"||date>localIsoToday()) errors.push("Date must be between 01-Apr-2026 and today");
     if(!bag) errors.push("Bag type not matched");
     if(!Number.isFinite(consumption)||consumption<0) errors.push("Invalid consumption");
     if(!Number.isFinite(damages)||damages<0) errors.push("Invalid damages");
@@ -44,6 +56,7 @@ export default function PackingBagUsageUpload({supabase,bagTypes,isAdmin,onUploa
   }),[rows,map,bagTypes]);
   const duplicateCount=useMemo(()=>{const seen=new Set();let n=0;for(const r of mapped){if(!r.bag||!r.date)continue;const k=r.bag.id+"|"+r.date;if(seen.has(k))n++;seen.add(k);}return n;},[mapped]);
   const invalid=mapped.filter(r=>r.errors.length).length+duplicateCount;
+  const errorSummary=useMemo(()=>{const counts={};for(const r of mapped)for(const e of r.errors)counts[e]=(counts[e]||0)+1;return counts;},[mapped]);
   async function submit() {
     if(!isAdmin){setError("Only an administrator can upload consumption and damages.");return;}
     if(!mapped.length||invalid){setError("Correct all validation errors and duplicate bag-type/date rows before upload.");return;}
@@ -73,7 +86,8 @@ export default function PackingBagUsageUpload({supabase,bagTypes,isAdmin,onUploa
         <h3>2. Validation preview</h3>
         <div className="stats compact"><div className="stat"><span>Total rows</span><b>{mapped.length.toLocaleString("en-IN")}</b></div><div className="stat"><span>Valid rows</span><b>{(mapped.length-invalid).toLocaleString("en-IN")}</b></div><div className="stat"><span>Errors / duplicates</span><b>{invalid.toLocaleString("en-IN")}</b></div></div>
         <div className="table-scroll preview"><table><thead><tr><th>Excel Row</th><th>Date</th><th>Bag Type</th><th className="num">Consumption NOS</th><th className="num">Damages NOS</th><th>Validation</th></tr></thead><tbody>{mapped.slice(0,100).map(r=><tr key={r.row}><td>{r.row}</td><td>{r.date||"—"}</td><td>{r.bagText||"—"}</td><td className="num">{Number.isFinite(r.consumption)?r.consumption.toLocaleString("en-IN"):"—"}</td><td className="num">{Number.isFinite(r.damages)?r.damages.toLocaleString("en-IN"):"—"}</td><td>{r.errors.length?<span className="validation-error">{r.errors.join("; ")}</span>:<span className="validation-ok">Ready</span>}</td></tr>)}</tbody></table></div>
-        {mapped.length>100&&<p className="footnote">Showing first 100 rows. All rows are validated before upload.</p>}
+        {mapped.length>100&&<p className="footnote">Showing first 100 rows. All {mapped.length.toLocaleString("en-IN")} non-empty rows are validated before upload.</p>}
+        {invalid>0&&<div className="alert error"><b>Upload is blocked: {invalid.toLocaleString("en-IN")} validation issue(s) found.</b><ul>{Object.entries(errorSummary).map(([label,count])=><li key={label}>{label}: {count}</li>)}{duplicateCount>0&&<li>Duplicate bag type/date rows: {duplicateCount}</li>}</ul>Check the Bag Type spelling and selected columns. Bag names such as “OPC Yellow” and “PPC Laminated Yellow” are now matched without requiring the word “Bags”.</div>}
         <div className="alert warning">For the historical FY balance through 18-Nov-2026, upload one row for every active bag type for every date from 01-Apr-2026 through 18-Nov-2026. Enter 0 for days with no consumption or damages. Partial historical uploads are saved but will not replace the existing historical baseline. For dates after 18-Nov-2026, each uploaded bag-type/date replaces the calculated values for that date. Existing values for the same bag type and date are replaced, not added. No records are changed until you confirm.</div>
         <button className="primary" type="button" onClick={submit} disabled={busy||!mapped.length||invalid>0}><UploadCloud size={16}/>{busy?"Uploading…":"Confirm and Upload"}</button>
       </div>}
