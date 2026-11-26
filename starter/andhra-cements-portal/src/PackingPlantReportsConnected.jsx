@@ -289,7 +289,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
                   </tr>)}
                 </React.Fragment>;
               })}
-              <tr className="stoppage-grand-total"><td colSpan={9}></td><td colSpan={1}>TOTAL PRODUCTION (MT)</td><td>{stoppageGroups.reduce((n,g)=>n+Number((g.rows.find(x=>Number(x.day_production_mt))||g.rows[0]||{}).day_production_mt||0),0).toFixed(2)}</td></tr>
+              <tr className="stoppage-grand-total"><td colSpan={8}></td><td colSpan={2}>TOTAL PRODUCTION (MT)</td><td>{stoppageGroups.reduce((n,g)=>n+Number((g.rows.find(x=>Number(x.day_production_mt))||g.rows[0]||{}).day_production_mt||0),0).toFixed(2)}</td></tr>
             </tbody>
           </table>
         </div>
