@@ -522,3 +522,17 @@ body{
     max-height:52px;
   }
 }
+
+
+/* Exact Stoppage Analysis master-workbook colour palette */
+.stoppage-report{background:#fff;border-color:#a6a6a6}
+.stoppage-report-heading{background:#d2dceb;border-color:#a6a6a6;border-bottom:1px solid #7f8fa3}
+.stoppage-report-heading strong,.stoppage-report-heading span,.stoppage-report-heading small{color:#000}
+.stoppage-report-heading b{color:#c00000}
+.stoppage-master-table th{background:#dce6f2;color:#000;border:1px solid #7f8fa3;box-shadow:none}
+.stoppage-master-table td{background:#fff;color:#000;border:1px solid #a6a6a6}
+.stoppage-master-table tbody tr:not(.stoppage-asset-title):not(.stoppage-grand-total):nth-child(even) td{background:#fff}
+.stoppage-master-table .stoppage-asset-title td{background:#d2dceb;color:#000;border-top:1px solid #7f8fa3;border-bottom:1px solid #7f8fa3}
+.stoppage-master-table .stoppage-grand-total td{background:#fff;color:#000;border-top:1px solid #7f8fa3;border-bottom:1px solid #7f8fa3}
+.stoppage-master-table .stoppage-grand-total td:nth-last-child(2){background:#fff;color:#000}
+.stoppage-master-table .stoppage-grand-total td:last-child{background:#fff;color:#000;border:1px solid #a6a6a6}
