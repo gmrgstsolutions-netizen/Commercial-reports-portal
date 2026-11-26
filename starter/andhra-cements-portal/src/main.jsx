@@ -232,7 +232,7 @@ function App() {
     } finally { setDispatchBusy(false); }
   }
 
-  async function loadWeighbridge() {
+  async function loadWeighbridge(rawFilterOverride = null) {
     if (!supabase || !session?.user) return;
     const selected = weighReports.find(x => x.key === weighReportKey);
     if (!selected) return;
@@ -249,7 +249,7 @@ function App() {
       }
       let result;
       if (weighReportKey === "raw_materials") {
-        const args={p_date_from:rawFromDate||monthStart,p_date_to:rawToDate||today,...rawFilters,p_limit:2000};
+        const args={p_date_from:rawFromDate||monthStart,p_date_to:rawToDate||today,...(rawFilterOverride||rawFilters),p_limit:2000};
         const response=await supabase.rpc(selected.rpc,args); if(response.error) throw response.error; result=response.data;
       } else if (weighReportKey === "transaction_wise") {
         const response=await supabase.rpc(selected.rpc,{p_date_from:transactionFrom,p_date_to:transactionTo}); if(response.error) throw response.error; result=response.data;
@@ -507,7 +507,7 @@ function App() {
         {!weighBusy && weighData && <CommercialReportLayout type="weighbridge" reportKey={weighReportKey} data={weighData}/>}
         {!weighBusy && !weighError && weighData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
         {weighReportKey==="transaction_wise" && <div className="alert warning">Transaction-wise report supports a maximum 93-day date range. Use the date range to narrow large results.</div>}
-      {weighReportKey==="raw_materials" && <div className="panel"><div className="panel-title"><h3>Raw material search filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_pass_no","Pass No"],["p_rf_code","RF Code"],["p_vehicle_no","Vehicle No"],["p_dc_no","DC No"],["p_material","Material"],["p_supplier","Supplier"],["p_transporter","Transporter"],["p_shift","Shift"]].map(([key,label])=><label key={key}>{label}<input value={rawFilters[key]} onChange={e=>setRawFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadWeighbridge}>Search transactions</button><button className="text-btn" onClick={()=>setRawFilters({p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:""})}>Clear filters</button></div></div>}
+      {weighReportKey==="raw_materials" && <div className="panel"><div className="panel-title"><h3>Raw material search filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_pass_no","Pass No"],["p_rf_code","RF Code"],["p_vehicle_no","Vehicle No"],["p_dc_no","DC No"],["p_material","Material"],["p_supplier","Supplier"],["p_transporter","Transporter"],["p_shift","Shift"]].map(([key,label])=><label key={key}>{label}<input value={rawFilters[key]} onChange={e=>setRawFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadWeighbridge}>Search transactions</button><button className="text-btn" onClick={()=>{const cleared={p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:""};setRawFilters(cleared);loadWeighbridge(cleared);}}>Clear filters</button></div></div>}
       </section> : reportType === "Scrap Reports" ? <section>
         <div className="section-head"><div><span className="eyebrow">SCRAP REPORTS · READ-ONLY</span><h1>{scrapReports.find(x=>x.key===scrapReportKey)?.label}</h1><p className="muted">Scrap sales and invoice details in the same report structure as the Android viewer.</p></div>
           {scrapReportKey==="invoice_wise" ? <div className="date-tools"><label>From date<input type="date" value={scrapFromDate} onChange={e=>setScrapFromDate(e.target.value)}/></label><label>To date<input type="date" value={scrapToDate} onChange={e=>setScrapToDate(e.target.value)}/></label><button className="secondary" onClick={loadScrap}><RefreshCw size={16}/>Refresh</button></div> : <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadScrap}><RefreshCw size={16}/>Refresh</button></div>}</div>
