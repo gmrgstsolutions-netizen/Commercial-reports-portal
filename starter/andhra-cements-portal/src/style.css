@@ -414,3 +414,75 @@ body{
 .stoppage-master-table .stoppage-grand-total td:nth-last-child(2){text-align:right;background:#e7e6e6}
 .stoppage-master-table .stoppage-grand-total td:last-child{background:#fff2cc;font-size:11px}
 @media(max-width:760px){.stoppage-report-heading{padding-left:88px;padding-right:6px}.stoppage-report-heading img{width:70px;height:58px}.stoppage-master-table{min-width:920px}}
+
+
+/* Daily stoppage report: clearer master-sheet grid and restrained corporate theme */
+.stoppage-report{
+  gap:7px;
+  padding:10px;
+  background:#f3f6f9;
+  border:1px solid #cbd5df;
+  border-radius:8px;
+}
+.stoppage-report-heading{
+  background:#fff;
+  border:1px solid #aebdca;
+  border-bottom:2px solid #173b5b;
+  border-radius:4px 4px 0 0;
+}
+.stoppage-report-heading strong{color:#173b5b;letter-spacing:.45px}
+.stoppage-report-heading b{color:#173b5b}
+.stoppage-report-heading small{color:#52677b;font-weight:700}
+.stoppage-report .table-scroll{
+  border:1px solid #7f91a3;
+  border-radius:3px;
+  background:#fff;
+  overflow:auto;
+}
+.stoppage-master-table{
+  border-collapse:collapse;
+  border:1.5px solid #667b8f;
+  background:#fff;
+}
+.stoppage-master-table th{
+  background:#dce6ef;
+  color:#142f48;
+  border:1px solid #71869a;
+  border-bottom:2px solid #526b82;
+  font-weight:800;
+  box-shadow:inset 0 1px 0 #fff;
+}
+.stoppage-master-table td{
+  border:1px solid #aab6c1;
+  color:#243746;
+}
+.stoppage-master-table tbody tr:not(.stoppage-asset-title):not(.stoppage-grand-total):nth-child(even) td{
+  background:#f7f9fb;
+}
+.stoppage-master-table .stoppage-asset-title td{
+  background:#e5edf4;
+  color:#173b5b;
+  border-top:2px solid #657d93;
+  border-bottom:1.5px solid #8296a8;
+  letter-spacing:.35px;
+}
+.stoppage-master-table .stoppage-grand-total td{
+  background:#edf1f4;
+  color:#9d1c1c;
+  border-top:2px solid #526b82;
+  border-bottom:2px solid #526b82;
+}
+.stoppage-master-table .stoppage-grand-total td:nth-last-child(2){
+  background:#e1e8ee;
+  color:#173b5b;
+}
+.stoppage-master-table .stoppage-grand-total td:last-child{
+  background:#fff0b8;
+  color:#7b1e1e;
+  font-size:11px;
+  border:1.5px solid #9a8950;
+}
+@media(max-width:760px){
+  .stoppage-report{padding:6px}
+  .stoppage-report .table-scroll{border-radius:2px}
+}
