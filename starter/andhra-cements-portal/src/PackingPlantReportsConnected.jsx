@@ -117,7 +117,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         ws.getRow(r).height = 17;
         const c = ws.getCell("C"+r);
         c.font = { name: "Calibri", size: r===5?9:12, bold: true, color: { argb: r===4 ? "FFC00000" : "FF000000" } };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD2DCEB" } };
         c.alignment = { horizontal: r===5 ? "right" : "center", vertical: "middle" };
         c.border = { top:{style:"thin"},bottom:{style:r===5?"medium":"thin"},left:{style:"thin"},right:{style:"thin"} };
       });
@@ -131,7 +131,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         const cell = ws.getCell(6,i+2);
         cell.value = label;
         cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF000000" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7E6E6" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F2" } };
         cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
         cell.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"thin"} };
       });
@@ -157,7 +157,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         const label = group.asset==="Bulk Loading" ? "Bulk" : group.asset==="Packer 3" ? "PACKER -3" : group.asset.toUpperCase().replace("PACKER ","PACKER-");
         section.getCell(2).value = label;
         section.getCell(2).font = { name:"Calibri",size:11,bold:true,color:{argb:"FF000000"} };
-        section.getCell(2).fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFE7E6E6"} };
+        section.getCell(2).fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFD2DCEB"} };
         section.getCell(2).alignment = { horizontal:"center",vertical:"middle" };
         section.getCell(2).border = { top:{style:"medium"},bottom:{style:"thin"},left:{style:"medium"},right:{style:"medium"} };
         section.height = 20;
@@ -206,14 +206,14 @@ export default function PackingPlantReportsConnected({ supabase }) {
       totalLabel.value = "TOTAL PRODUCTION (MT)";
       totalLabel.font = { name:"Calibri",size:11,bold:true,color:{argb:"FF000000"} };
       totalLabel.alignment = { horizontal:"right",vertical:"middle" };
-      totalLabel.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFE7E6E6"} };
+      totalLabel.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFFFFFFF"} };
       totalLabel.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"thin"} };
       const totalValue = ws.getCell(totalRow,12);
       totalValue.value = productionCells.length ? { formula:"SUM("+productionCells.join(",")+")" } : 0;
       totalValue.font = { name:"Calibri",size:12,bold:true,color:{argb:"FF000000"} };
       totalValue.numFmt="0.00";
       totalValue.alignment={horizontal:"center",vertical:"middle"};
-      totalValue.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFFFF2CC"} };
+      totalValue.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFFFFFFF"} };
       totalValue.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"medium"} };
       ws.getRow(totalRow).height=22;
       ws.pageSetup.printArea="B2:L"+totalRow;
