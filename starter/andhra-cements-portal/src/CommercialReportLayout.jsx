@@ -50,7 +50,14 @@ function TransporterDay({data}) {
   const products=data?.products||[], rows=data?.rows||[];
   const states=[...new Set(rows.map(r=>r.state||"Not Available"))];
   const body=[];const sums=products.map(()=>0);let grandC=0,grandK=0;
-  for(const state of states){const sr=rows.filter(r=>(r.state||"Not Available")===state);const st=products.map(p=>sr.reduce((a,r)=>a+n(r.cement_quantities?.[p.product_code]),0));const sc=sr.reduce((a,r)=>a+n(r.cement_total),0),sk=sr.reduce((a,r)=>a+n(r.clinker_qty),0);body.push([<b>{state} TOTAL</b>,"","",...st.map(fmt),fmt(sc),fmt(sk)]);products.forEach((p,i)=>sums[i]+=st[i]);grandC+=sc;grandK+=sk;for(const r of sr)body.push([state,text(r.district),text(r.transporter),...products.map(p=>n(r.cement_quantities?.[p.product_code])?fmt(r.cement_quantities[p.product_code]):"—"),fmt(r.cement_total),n(r.clinker_qty)?fmt(r.clinker_qty):"—"]);}
+  for(const state of states){
+    const sr=rows.filter(r=>(r.state||"Not Available")===state);
+    const st=products.map(p=>sr.reduce((a,r)=>a+n(r.cement_quantities?.[p.product_code]),0));
+    const sc=sr.reduce((a,r)=>a+n(r.cement_total),0),sk=sr.reduce((a,r)=>a+n(r.clinker_qty),0);
+    for(const r of sr)body.push([state,text(r.district),text(r.transporter),...products.map(p=>n(r.cement_quantities?.[p.product_code])?fmt(r.cement_quantities[p.product_code]):"—"),fmt(r.cement_total),n(r.clinker_qty)?fmt(r.clinker_qty):"—"]);
+    body.push([<b>{state} TOTAL</b>,"","",...st.map(fmt),fmt(sc),fmt(sk)]);
+    products.forEach((p,i)=>sums[i]+=st[i]);grandC+=sc;grandK+=sk;
+  }
   return <Panel title="TRANSPORTER - DAY WISE" sub={date(data?.report_date)+" · Qty in MT"}><Table headers={["State","District","Transporter",...products.map(p=>p.product_name||p.product_code),"Total","Clinker"]} firstLeft={3} rows={body} totals={["Grand Total","","",...sums.map(fmt),fmt(grandC),fmt(grandK)]}/></Panel>;
 }
 function UnderLoading({data}) {
@@ -89,15 +96,17 @@ function ScrapInvoice({data}) {
  return <Panel title="SCRAP SALES - INVOICE WISE" sub={data?.period_label||"Selected period"}><Table headers={headers} firstLeft={8} rows={rows.map(r=>keys.map((k,i)=>i<8?(k==="invoice_date"?date(r[k]):text(r[k])):fmt(r[k])))} totals={["Grand Total","","","","","","","",fmt(t.quantity),fmt(t.basic_value),fmt(t.cgst),fmt(t.sgst),fmt(t.igst),fmt(t.tax),fmt(t.total_value)]} small/></Panel>;
 }
 function Weighbridge({data}) {
- const rows=data?.rows||[], pending=data?.pending_rows||[], outside=data?.outside_rows||[];
- const categories=[["raw","UN-LOADING COMPLETED","Raw Material Total"],["cement","LOADING COMPLETED","Cement Total"],["clinker","LOADING COMPLETED","Clinker"]];
- const sums={};
- const val=(arr,cat,k)=>arr.filter(r=>String(r.category||"").toLowerCase()===cat).reduce((a,r)=>a+n(r[k]),0);
- const all=categories.map(([cat,title,total])=>{const rs=rows.filter(r=>String(r.category||"").toLowerCase()===cat);return <div className="cr-section" key={cat}><h4>{title} · {total}</h4><Table headers={["SL NO.","PARTICULARS","UOM","QTY (MT)","NO. OF TRUCKS","MTD QTY","MTD TRUCKS","YTD QTY","YTD TRUCKS"]} firstLeft={3} rows={rs.map((r,i)=>[i+1,text(r.material),text(r.uom||"MT"),fmt(r.on_date_qty),fmt(r.on_date_trucks),fmt(r.mtd_qty),fmt(r.mtd_trucks),fmt(r.ytd_qty),fmt(r.ytd_trucks)])} totals={["",total,"",fmt(val(rows,cat,"on_date_qty")),fmt(val(rows,cat,"on_date_trucks")),fmt(val(rows,cat,"mtd_qty")),fmt(val(rows,cat,"mtd_trucks")),fmt(val(rows,cat,"ytd_qty")),fmt(val(rows,cat,"ytd_trucks"))]}/></div>;});
- return <Panel title="WEIGHBRIDGE REPORT" sub={date(data?.report_date)}><Title sub={"Completed: "+date(data?.completed_source_date||data?.report_date)+" · Under Loading: "+date(data?.pending_source_date||data?.report_date)+" · Outside: "+date(data?.outside_source_date||data?.report_date)}>WEIGHBRIDGE REPORT</Title>{all}
-   <div className="cr-section"><h4>TRUCKS UNDER LOADING</h4><StatusRows rows={pending}/></div>
-   <div className="cr-section"><h4>OUTSIDE MAIN GATE</h4><StatusRows rows={outside}/></div>
-   {data?.shift_incharge_name&&<p className="cr-shift">WEIGH BRIDGE SHIFT INCHARGE: {String(data.shift_incharge_name).toUpperCase()}</p>}
+ const completed=data?.rows||[], pending=data?.pending_rows||[], outside=data?.outside_rows||[];
+ const map=new Map();
+ const add=(r,stage)=>{let category=String(r.category||"").toLowerCase(),material=text(r.material);if(["CLN","CLINKER"].includes(material.toUpperCase()))category="clinker";if(!["raw","cement","clinker"].includes(category))return;const key=category+"|"+material.toUpperCase();if(!map.has(key))map.set(key,{category,material,uom:r.uom||"MT",v:[0,0,0,0,0]});const item=map.get(key);if(stage===0){item.v[0]+=n(r.on_date_qty);item.v[1]+=n(r.on_date_trucks);}else if(stage===1){item.v[2]+=n(r.qty);item.v[3]+=n(r.trucks);}else item.v[4]+=n(r.trucks);};
+ completed.forEach(r=>add(r,0));pending.forEach(r=>add(r,1));outside.forEach(r=>add(r,2));
+ const labels=[["raw","UN-LOADING COMPLETED","A","Raw Material Total"],["cement","LOADING COMPLETED","B","Cement Total"],["clinker","LOADING COMPLETED","C","Clinker"]];
+ const grand=[0,0,0,0,0];
+ return <Panel title="WEIGHBRIDGE REPORT" sub={date(data?.report_date)}><Title sub={"Completed: "+date(data?.completed_source_date||data?.report_date)+" · Under Loading: "+date(data?.pending_source_date||data?.report_date)+" · Outside: "+date(data?.outside_source_date||data?.report_date)}>WEIGHBRIDGE REPORT</Title>
+  <Table headers={["SL NO.","PARTICULARS","UOM","QTY","NO. OF TRUCKS","QTY","NO. OF TRUCKS","NO. OF TRUCKS"]} firstLeft={3} rows={[]}/>
+  {labels.map(([cat,title,letter,totalLabel])=>{const items=[...map.values()].filter(x=>x.category===cat);const sum=[0,0,0,0,0];items.forEach(x=>x.v.forEach((v,i)=>{sum[i]+=v;grand[i]+=v;}));return <div className="cr-section" key={cat}><h4>{title}</h4><Table headers={["SL NO.","PARTICULARS","UOM","QTY","NO. OF TRUCKS","QTY","NO. OF TRUCKS","NO. OF TRUCKS"]} firstLeft={3} rows={items.filter(x=>x.v.some(v=>Math.abs(v)>0.000001)).map((x,i)=>[i+1,x.material,x.uom,fmt(x.v[0]),x.v[1]||"—",fmt(x.v[2]),x.v[3]||"—",x.v[4]||"—"])} totals={[letter,totalLabel,"MT",fmt(sum[0]),sum[1]||"—",fmt(sum[2]),sum[3]||"—",sum[4]||"—"]}/></div>;})}
+  <div className="cr-section"><Table headers={["SL NO.","PARTICULARS","UOM","QTY","NO. OF TRUCKS","QTY","NO. OF TRUCKS","NO. OF TRUCKS"]} rows={[]} totals={["","Grand Total (A+B+C)","MT",fmt(grand[0]),grand[1]||"—",fmt(grand[2]),grand[3]||"—",grand[4]||"—"]}/></div>
+  {data?.shift_incharge_name&&<p className="cr-shift">WEIGH BRIDGE SHIFT INCHARGE: {String(data.shift_incharge_name).toUpperCase()}</p>}
  </Panel>;
 }
 function StatusRows({rows}) {
