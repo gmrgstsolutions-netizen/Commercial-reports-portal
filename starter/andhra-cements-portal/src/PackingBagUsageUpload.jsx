@@ -33,7 +33,7 @@ export default function PackingBagUsageUpload({supabase,bagTypes,isAdmin,onUploa
     const sourceCols=source.length?Object.keys(source[0]):[];
     const find=terms=>sourceCols.find(c=>terms.some(t=>norm(c).includes(t)))||"";
     const dateCol=find(["usagedate","consumptiondate","date","postingdate"]);
-    const bagCols=sourceCols.filter(c=>/^bagtype\\d*$/.test(norm(c)));
+    const bagCols=sourceCols.filter(c=>/^bagtype\d*$/.test(norm(c)));
     let data=source, cols=sourceCols, wide=false;
     if(dateCol && bagCols.length>1) {
       wide=true;
