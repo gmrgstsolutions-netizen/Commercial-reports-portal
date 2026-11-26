@@ -121,11 +121,11 @@ function App() {
 
   useEffect(() => {
     if (session?.user && reportType==="Weighbridge Reports") loadWeighbridge();
-  }, [session, reportDate, reportType, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate, rawFilters]);
+  }, [session, reportDate, reportType, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate]);
 
   useEffect(() => {
     if (session?.user && reportType==="Scrap Reports") loadScrap();
-  }, [session, reportDate, reportType, scrapReportKey, scrapFromDate, scrapToDate, scrapFilters]);
+  }, [session, reportDate, reportType, scrapReportKey, scrapFromDate, scrapToDate]);
 
   async function loadData() {
     setBusy(true); setError("");
