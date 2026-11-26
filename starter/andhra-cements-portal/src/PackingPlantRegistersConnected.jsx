@@ -74,7 +74,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   if(!bagReportFrom||!bagReportTo||bagReportFrom>bagReportTo){setNotice("Select a valid Bag Counting date range.");return;}
   const {data,error}=await supabase.from("pp_bag_counting_sessions").select("*").gte("business_date",bagReportFrom).lte("business_date",bagReportTo).order("loading_start");
   if(error){setNotice("Unable to load bag-counting sessions: "+error.message);return;}
-  setBagSessions(data||[]);
+  setBagSessions((data||[]).filter(x=>Number(x.target_bags)>0));
   setBagMatches([]);
  }
  async function loadPackerReport(){
@@ -83,7 +83,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   try{
    const {data,error}=await supabase.from("pp_bag_counting_sessions").select("*").gte("business_date",packerFrom).lte("business_date",packerTo).order("loading_start");
    if(error)throw error;
-   const sessions=(data||[]).filter(x=>(packerShift==="ALL"||x.shift_code===packerShift)&&(packerFilter==="ALL"||x.packer_code===packerFilter)).map(x=>({...x,packerLabel:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3"}));
+   const sessions=(data||[]).filter(x=>Number(x.target_bags)>0&&(packerShift==="ALL"||x.shift_code===packerShift)&&(packerFilter==="ALL"||x.packer_code===packerFilter)).map(x=>({...x,packerLabel:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3"}));
    setPackerReportRows(sessions);setPackerBulkRows([]);setPackerUnmatchedDispatch([]);setPackerUnmatchedPackslips([]);setPackerReportLoaded(true);
    setNotice("Packer summary generated from "+sessions.length+" uploaded bag-counting sessions. No dispatch, invoice, packslip or weighbridge matching is used.");
   }catch(err){setNotice("Unable to generate Packer Report: "+err.message);}finally{setPackerReportBusy(false);}
@@ -184,7 +184,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     const grade=String(r[ix.grade]??"").trim().toUpperCase();
     const bagTypeRaw=String(r[ix.bagType]??"").trim().toUpperCase();
     const bagType=bagTypeRaw.includes("LAMIN")?"LAMINATED":bagTypeRaw.includes("WHITE")?"WHITE":bagTypeRaw.includes("YELLOW")?"YELLOW":bagTypeRaw;
-    const target=Number(String(r[ix.target]??"").replace(/,/g,"").trim());
+    const rawTarget=String(r[ix.target]??"").replace(/,/g,"").trim();
+    const target=rawTarget===""?NaN:Number(rawTarget);
     const invalid=[];
     if(!["OPC","PPC"].includes(grade))invalid.push("Grade must be OPC or PPC");
     if(!["YELLOW","WHITE","LAMINATED"].includes(bagType))invalid.push("Bag Type must be Yellow, White or Laminated");
@@ -201,8 +202,10 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     const duration=secondsBetween(start,end);
     return {rowNo:headerIndex+i+2,counter,truck,start,end,grade,bagType,target,quantityMt:target/20,shiftCode,businessDate:isoLocalDate(business),duration,packer:packerForCounter(counter),importKey:[isoLocalDate(start),counter,truck,isoLocalDateTime(start),isoLocalDateTime(end)].join("|"),valid:true,invalid:[]};
    });
+   const zeroTargetRows=rows.filter(x=>x.target===0).length;
+   const nonZeroRows=rows.filter(x=>x.target!==0);
    const seenImportKeys=new Set();
-   const checkedRows=rows.map(x=>{
+   const checkedRows=nonZeroRows.map(x=>{
     if(!x.valid)return x;
     if(seenImportKeys.has(x.importKey))return {...x,valid:false,invalid:[...(x.invalid||[]),"Duplicate loading session in Excel — skipped"]};
     seenImportKeys.add(x.importKey);return x;
@@ -210,7 +213,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
    setBagPreview(checkedRows);
    const good=checkedRows.filter(x=>x.valid).length;
    const duplicates=checkedRows.filter(x=>(x.invalid||[]).some(v=>v.startsWith("Duplicate loading session"))).length;
-   setNotice("Preview ready: "+checkedRows.length+" rows; "+good+" valid loading sessions; "+duplicates+" duplicate rows; "+(checkedRows.length-good)+" rows will be skipped.");
+   setNotice("Preview ready: "+checkedRows.length+" rows; "+good+" valid loading sessions; "+duplicates+" duplicate rows; "+zeroTargetRows+" zero-target rows ignored; "+(checkedRows.length-good)+" other rows will be skipped.");
   }catch(err){setNotice("Bag Counting Excel could not be read: "+err.message);}
  }
  async function importBagCounting(){
