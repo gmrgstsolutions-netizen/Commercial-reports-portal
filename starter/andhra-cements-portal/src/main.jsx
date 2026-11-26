@@ -308,19 +308,20 @@ function App() {
     ];
     const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
     ws["!merges"] = [{s:{r:0,c:0},e:{r:0,c:14}},{s:{r:2,c:0},e:{r:2,c:14}}];
-    ws["!cols"] = [{wch:9},{wch:20},{wch:62},{wch:10},...Array.from({length:11},()=>({wch:17}))];
+    // Compact worksheet layout: retain every field while reducing horizontal and vertical footprint.
+    ws["!cols"] = [{wch:6},{wch:15},{wch:42},{wch:6},...Array.from({length:11},()=>({wch:11}))];
     ws["!freeze"] = {xSplit:4,ySplit:4,topLeftCell:"E5",activePane:"bottomRight",state:"frozen"};
     ws["!autofilter"] = {ref:"A4:O" + (4 + body.length)};
     const border = {top:{style:"thin",color:{rgb:"D6DEE8"}},bottom:{style:"thin",color:{rgb:"D6DEE8"}},left:{style:"thin",color:{rgb:"D6DEE8"}},right:{style:"thin",color:{rgb:"D6DEE8"}}};
     for (let c=0;c<15;c++) {
       const title = ws[XLSXStyle.utils.encode_cell({r:0,c})];
-      if (title) title.s = {font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"17365D"}},alignment:{vertical:"center",horizontal:"left"}};
+      if (title) title.s = {font:{name:"Aptos Display",sz:13,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"17365D"}},alignment:{vertical:"center",horizontal:"left"}};
       const meta = ws[XLSXStyle.utils.encode_cell({r:1,c})];
-      if (meta) meta.s = {font:{name:"Aptos",sz:10,bold:c===0||c===3,color:{rgb:"243447"}},alignment:{vertical:"center"}};
+      if (meta) meta.s = {font:{name:"Aptos",sz:9,bold:c===0||c===3,color:{rgb:"243447"}},alignment:{vertical:"center"}};
       const note = ws[XLSXStyle.utils.encode_cell({r:2,c})];
-      if (note) note.s = {font:{name:"Aptos",sz:9,italic:true,color:{rgb:"64748B"}},alignment:{vertical:"center"}};
+      if (note) note.s = {font:{name:"Aptos",sz:8,color:{rgb:"64748B"}},alignment:{vertical:"center"}};
       const head = ws[XLSXStyle.utils.encode_cell({r:3,c})];
-      if (head) head.s = {font:{name:"Aptos",sz:10,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"24527A"}},alignment:{horizontal:c<4?"center":"right",vertical:"center",wrapText:true},border};
+      if (head) head.s = {font:{name:"Aptos",sz:9,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"24527A"}},alignment:{horizontal:c<4?"center":"right",vertical:"center",wrapText:true},border};
     }
     for (let r=4;r<4+body.length;r++) {
       const isTotal = r===3+body.length;
@@ -328,7 +329,7 @@ function App() {
         const cell=ws[XLSXStyle.utils.encode_cell({r,c})];
         if (!cell) continue;
         cell.s = {
-          font:{name:"Aptos",sz:10,bold:isTotal,color:isTotal?"9C0006":"243447"},
+          font:{name:"Aptos",sz:9,bold:isTotal,color:isTotal?"9C0006":"243447"},
           fill:{fgColor:{rgb:isTotal?"FFF2CC":(r%2===0?"F3F6FA":"FFFFFF")}},
           alignment:{vertical:"center",horizontal:c===2?"left":(c<4?"center":"right")},
           border
@@ -337,7 +338,7 @@ function App() {
       }
     }
     ws["A1"].s = {font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"17365D"}},alignment:{vertical:"center",horizontal:"left"}};
-    ws["!rows"] = [{hpt:30},{hpt:22},{hpt:18},{hpt:34},...body.map(()=>({hpt:22}))];
+    ws["!rows"] = [{hpt:23},{hpt:17},{hpt:14},{hpt:27},...body.map(()=>({hpt:17}))];
     const wb = XLSXStyle.utils.book_new();
     XLSXStyle.utils.book_append_sheet(wb, ws, "Stock Statement");
     wb.Props = {Title:"Packing Bags Stock Statement",Subject:"Andhra Cements",Author:"Commercial Operations"};
