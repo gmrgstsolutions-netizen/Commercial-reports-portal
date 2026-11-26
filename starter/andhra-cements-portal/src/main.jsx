@@ -71,14 +71,14 @@ function App() {
   const weighReports = [{key:"datewise",label:"Weighbridge Consolidated",rpc:"get_weighbridge_report"},{key:"product_summary",label:"Consolidated Product Summary",rpc:"get_weighbridge_product_summary"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Weighbridge Report - Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
   const dispatchReports = [
     {key:"product_wise",label:"Product-wise Dispatch",rpc:"get_state_district_report"},
-    {key:"state_district",label:"State / District-wise Dispatch",rpc:"get_state_district_report"},
+    {key:"clinker_customer",label:"Clinker Sales - Customer wise",rpc:"get_clinker_customer_report"},
     {key:"transporter",label:"Dispatches - Transporter wise",rpc:"get_transporter_dispatch_report"},
     {key:"transporter_day_wise",label:"Transporter - Day wise",rpc:"get_transporter_day_wise_report"},
     {key:"under_loading",label:"Under Loading",rpc:"get_under_loading_report"},
-    {key:"clinker_customer",label:"Clinker Sales - Customer wise",rpc:"get_clinker_customer_report"},
-    {key:"invoice_wise",label:"Invoice-wise",rpc:"get_invoice_wise_report_v2"},
+    {key:"monthly_yearly",label:"Month wise-Yearly",rpc:"get_month_wise_yearly_report"},
+    {key:"state_district",label:"State / District-wise Dispatch",rpc:"get_state_district_report"},
     {key:"trade_non_trade",label:"Trade-Non-Dispatches",rpc:"get_trade_non_dispatches"},
-    {key:"monthly_yearly",label:"Month wise-Yearly",rpc:"get_month_wise_yearly_report"}
+    {key:"invoice_wise",label:"Invoice-wise",rpc:"get_invoice_wise_report_v2"}
   ];
   const scrapReports = [{key:"summary",label:"Scrap Sales",rpc:"get_scrap_sales_report"},{key:"invoice_wise",label:"Scrap Sales - Invoice Wise",rpc:"get_scrap_invoice_wise_report_v2"}];
 
