@@ -218,7 +218,7 @@ function App() {
         p_months:[],p_date_from:dispatchFromDate || null,p_date_to:dispatchToDate || null,
         ...(filterOverride || invoiceFilters),p_dispatchdate:"",p_limit:1000
       };
-      else if (dispatchReportKey==="trade_non_trade") args={p_month:reportDate};
+      else if (dispatchReportKey==="trade_non_trade") args={p_month:new Date(reportDate+"T00:00:00").getFullYear()+"-"+String(new Date(reportDate+"T00:00:00").getMonth()+1).padStart(2,"0")+"-01"};
       else if (dispatchReportKey==="monthly_yearly") {
         const d=new Date(reportDate+"T00:00:00");
         args={p_fy_start:d.getMonth()>=3?d.getFullYear():d.getFullYear()-1};
