@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import logoBase64 from "./andhra-cements-logo.txt?raw";
 
 const REPORTS = [
   { key: "shift_production", label: "Daily Packing Production", note: "Dispatch-derived production and adjusted running hours by business date and packing unit." },
@@ -78,41 +80,161 @@ export default function PackingPlantReportsConnected({ supabase }) {
     } finally { setBusy(false); }
   }
 
-  function downloadExcel() {
+  async function downloadExcel() {
     if (!rows.length) return;
-    const wb = XLSX.utils.book_new();
     if (reportKey === "daily_stoppage") {
-      const aoa = [["ANDHRA CEMENTS LIMITED – DACHEPALLI"],["STOPPAGE ANALYSIS REPORT"],["Period: " + fromDate + " to " + toDate],[]];
-      const merges = [{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}},{s:{r:2,c:0},e:{r:2,c:9}}];
-      for (const group of stoppageGroups) {
-        aoa.push([group.asset + "  |  " + group.date]);
-        merges.push({s:{r:aoa.length-1,c:0},e:{r:aoa.length-1,c:9}});
-        aoa.push(["Stop No.","Date","Stop Time","Restart Time","Duration (Hours)","Reason for Stoppage","Stoppage Category","Day Stoppage Hours","Day Running Hours","Day Production (MT)"]);
-        const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
-        if(details.length) details.forEach(x=>aoa.push([
-          x.stop_number??"",x.business_date??group.date,x.stop_time??"",x.start_time??"",
-          Number(x.duration_hours)||0,x.reason??"",x.stoppage_classification??"",
-          Number(x.day_stoppage_hours)||0,Number(x.day_running_hours)||0,Number(x.day_production_mt)||0
-        ]));
-        else {
-          const summary=group.rows[0]||{};
-          aoa.push(["",group.date,"","","","No stoppage recorded","",
-            Number(summary.day_stoppage_hours)||0,Number(summary.day_running_hours)||0,Number(summary.day_production_mt)||0]);
-        }
-        aoa.push([]);
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Andhra Cements Limited";
+      workbook.subject = "Packing Plant Stoppage Analysis";
+      workbook.title = "Stoppage Analysis Report";
+      workbook.created = new Date();
+      const ws = workbook.addWorksheet("Stoppage Analysis", {
+        pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.1, footer: 0.1 } },
+        views: [{ state: "frozen", ySplit: 8 }]
+      });
+      ws.columns = [
+        { key: "margin", width: 3 }, { key: "counter", width: 18 },
+        { key: "date", width: 14 }, { key: "count", width: 14 },
+        { key: "stop", width: 12 }, { key: "restart", width: 12 },
+        { key: "duration", width: 13 }, { key: "reason", width: 34 },
+        { key: "category", width: 22 }, { key: "stoppage", width: 19 },
+        { key: "running", width: 17 }, { key: "production", width: 18 }
+      ];
+      ws.mergeCells("B2:B5");
+      ws.mergeCells("C2:L2");
+      ws.mergeCells("C3:L3");
+      ws.mergeCells("C4:L4");
+      ws.mergeCells("C5:L5");
+      ws.getCell("C2").value = "ANDHRA CEMENTS LIMITED";
+      ws.getCell("C3").value = "DACHEPALLI";
+      ws.getCell("C4").value = "STOPPAGE ANALYSIS REPORT";
+      ws.getCell("C5").value = fromDate === toDate
+        ? "Date: " + new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB")
+        : "Period: " + new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB") + " to " + new Date(toDate + "T00:00:00").toLocaleDateString("en-GB");
+      ws.getRow(2).height = 25; ws.getRow(3).height = 22; ws.getRow(4).height = 24; ws.getRow(5).height = 22;
+      for (const cell of ["C2","C3","C4","C5"]) {
+        ws.getCell(cell).alignment = { horizontal: "center", vertical: "middle" };
+        ws.getCell(cell).font = { name: "Tahoma", bold: true, color: { argb: "FF202020" } };
       }
-      const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!merges"]=merges;
-      ws["!cols"]=[{wch:10},{wch:13},{wch:13},{wch:14},{wch:17},{wch:42},{wch:21},{wch:19},{wch:18},{wch:19}];
-      XLSX.utils.book_append_sheet(wb,ws,"Stoppage Analysis");
-    } else {
-      const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
-      const totalRow=Object.fromEntries(columns.map((key,i)=>[key,i===0?"Grand Total":totalKeys.includes(key)?rows.reduce((sum,row)=>sum+(Number(row[key])||0),0):""]));
-      const exportRows=[...rows,totalRow].map(row=>Object.fromEntries(columns.map(key=>[LABELS[key]||key.replace(/_/g," "),row[key]??""])));
-      const ws=XLSX.utils.json_to_sheet(exportRows);
-      ws["!cols"]=columns.map(key=>({wch:Math.max(14,Math.min(30,(LABELS[key]||key).length+4))}));
-      XLSX.utils.book_append_sheet(wb,ws,"Packing Report");
+      ws.getCell("C2").font = { name: "Tahoma", size: 16, bold: true, color: { argb: "FF202020" } };
+      ws.getCell("C3").font = { name: "Tahoma", size: 12, bold: true };
+      ws.getCell("C4").font = { name: "Tahoma", size: 14, bold: true, color: { argb: "FF17365D" } };
+      ws.getCell("C5").font = { name: "Tahoma", size: 10, bold: true };
+      const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
+      ws.addImage(imageId, { tl: { col: 1.15, row: 1.15 }, ext: { width: 66, height: 66 } });
+
+      const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
+      const headerRow = ws.getRow(6);
+      headers.forEach((v,i) => {
+        const cell = headerRow.getCell(i+2);
+        cell.value = v;
+        cell.font = { name: "Tahoma", size: 9, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF24476B" } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        cell.border = { top: { style: "thin", color: { argb: "FF263746" } }, bottom: { style: "thin", color: { argb: "FF263746" } }, left: { style: "thin", color: { argb: "FF263746" } }, right: { style: "thin", color: { argb: "FF263746" } } };
+      });
+      headerRow.height = 38;
+      for (let col=2; col<=12; col++) ws.mergeCells(6,col,8,col);
+      const order = { "Packer 1": 1, "Bulk Loading": 2, "Packer 2": 3, "Packer 3": 4 };
+      const sortedGroups = [...stoppageGroups].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
+      const productionTotalCells = [];
+      let rowNo = 9;
+      const toTimeFraction = (v) => {
+        if (v === null || v === undefined || v === "") return null;
+        if (typeof v === "number") return v >= 0 && v < 1 ? v : null;
+        if (v instanceof Date) return (v.getHours()*3600+v.getMinutes()*60+v.getSeconds())/86400;
+        const m = String(v).match(/(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);
+        return m ? (Number(m[1])*3600+Number(m[2])*60+Number(m[3]||0))/86400 : v;
+      };
+      for (const group of sortedGroups) {
+        const details = group.rows.filter(x => x.stop_number !== null && x.stop_number !== undefined).sort((a,b) => Number(a.stop_number)-Number(b.stop_number));
+        const summary = group.rows.find(x => Number(x.day_stoppage_hours)||Number(x.day_running_hours)||Number(x.day_production_mt)) || group.rows[0] || {};
+        const stopTotal = Number(summary.day_stoppage_hours)||0;
+        const runTotal = Number(summary.day_running_hours)||0;
+        const prodTotal = Number(summary.day_production_mt)||0;
+        const items = details.length ? details : [null];
+        const sectionRow = ws.getRow(rowNo);
+        ws.mergeCells(rowNo,2,rowNo,12);
+        sectionRow.getCell(2).value = group.asset === "Packer 3" ? "PACKER -3" : group.asset === "Bulk Loading" ? "Bulk" : group.asset.toUpperCase().replace("PACKER ","PACKER-");
+        sectionRow.getCell(2).font = { name: "Tahoma", size: 11, bold: true, color: { argb: "FF17365D" } };
+        sectionRow.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
+        sectionRow.getCell(2).alignment = { vertical: "middle", horizontal: "left" };
+        sectionRow.height = 23;
+        rowNo++;
+        const firstDataRow = rowNo;
+        for (let i=0; i<items.length; i++) {
+          const item = items[i];
+          const row = ws.getRow(rowNo);
+          row.getCell(2).value = item ? (item.stop_number ?? i+1) : "";
+          row.getCell(3).value = group.date ? new Date(group.date + "T00:00:00") : "";
+          row.getCell(4).value = details.length;
+          row.getCell(5).value = item ? toTimeFraction(item.stop_time) : "";
+          row.getCell(6).value = item ? toTimeFraction(item.start_time) : "";
+          row.getCell(7).value = item && Number.isFinite(Number(item.duration_hours)) ? Number(item.duration_hours)/24 : "";
+          row.getCell(8).value = item ? (item.reason ?? "") : "No stoppage recorded";
+          row.getCell(9).value = item ? (item.stoppage_classification ?? "") : "";
+          row.eachCell({ includeEmpty: true }, cell => {
+            if (cell.col < 2 || cell.col > 12) return;
+            cell.font = { name: "Tahoma", size: 9, color: { argb: "FF202020" } };
+            cell.alignment = { vertical: "middle", horizontal: [2,3,4,5,6,7,10,11,12].includes(cell.col) ? "center" : "left", wrapText: true };
+            cell.border = { top: { style: "thin", color: { argb: "FF9EADBA" } }, bottom: { style: "thin", color: { argb: "FF9EADBA" } }, left: { style: "thin", color: { argb: "FF9EADBA" } }, right: { style: "thin", color: { argb: "FF9EADBA" } } };
+            if (i % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F6F9" } };
+          });
+          row.getCell(3).numFmt = "dd.mm.yyyy";
+          row.getCell(5).numFmt = "hh:mm"; row.getCell(6).numFmt = "hh:mm"; row.getCell(7).numFmt = "[h]:mm";
+          row.height = 25;
+          rowNo++;
+        }
+        const lastDataRow = rowNo - 1;
+        for (const col of [10,11,12]) ws.mergeCells(firstDataRow,col,lastDataRow,col);
+        ws.getCell(firstDataRow,10).value = stopTotal/24;
+        ws.getCell(firstDataRow,11).value = runTotal/24;
+        ws.getCell(firstDataRow,12).value = prodTotal;
+        ws.getCell(firstDataRow,10).numFmt = "[h]:mm";
+        ws.getCell(firstDataRow,11).numFmt = "[h]:mm";
+        ws.getCell(firstDataRow,12).numFmt = "#,##0.00";
+        for (const col of [10,11,12]) {
+          const cell=ws.getCell(firstDataRow,col);
+          cell.font={name:"Tahoma",size:9,bold:true,color:{argb:"FF202020"}};
+          cell.alignment={horizontal:"center",vertical:"middle"};
+          cell.border={top:{style:"thin",color:{argb:"FF9EADBA"}},bottom:{style:"thin",color:{argb:"FF9EADBA"}},left:{style:"thin",color:{argb:"FF9EADBA"}},right:{style:"thin",color:{argb:"FF9EADBA"}}};
+        }
+        productionTotalCells.push("L"+firstDataRow);
+        rowNo++;
+      }
+      rowNo++;
+      ws.mergeCells(rowNo,10,rowNo,11);
+      ws.getCell(rowNo,10).value = "TOTAL PRODUCTION (MT)";
+      ws.getCell(rowNo,10).font = { name: "Tahoma", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+      ws.getCell(rowNo,10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF24476B" } };
+      ws.getCell(rowNo,10).alignment = { horizontal: "right", vertical: "middle" };
+      ws.getCell(rowNo,12).value = productionTotalCells.length ? { formula: "SUM(" + productionTotalCells.join(",") + ")" } : 0;
+      ws.getCell(rowNo,12).numFmt = "#,##0.00";
+      ws.getCell(rowNo,12).font = { name: "Tahoma", size: 10, bold: true, color: { argb: "FF202020" } };
+      ws.getCell(rowNo,12).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE699" } };
+      ws.getCell(rowNo,12).alignment = { horizontal: "center", vertical: "middle" };
+      ws.getRow(rowNo).height = 25;
+      ws.autoFilter = undefined;
+      ws.pageSetup.printArea = "B2:L" + rowNo;
+      ws.pageSetup.horizontalCentered = true;
+      ws.headerFooter.oddFooter = "&CAndhra Cements Limited - Packing Plant";
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Stoppage_Analysis_Report_" + fromDate + "_to_" + toDate + ".xlsx";
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+      return;
     }
-    XLSX.writeFile(wb,(reportKey==="daily_stoppage"?"Stoppage_Analysis_Report_":"Packing_Plant_Report_")+fromDate+"_to_"+toDate+".xlsx");
+    const wb = XLSX.utils.book_new();
+    const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
+    const totalRow=Object.fromEntries(columns.map((key,i)=>[key,i===0?"Grand Total":totalKeys.includes(key)?rows.reduce((sum,row)=>sum+(Number(row[key])||0),0):""]));
+    const exportRows=[...rows,totalRow].map(row=>Object.fromEntries(columns.map(key=>[LABELS[key]||key.replace(/_/g," "),row[key]??""])));
+    const ws=XLSX.utils.json_to_sheet(exportRows);
+    ws["!cols"]=columns.map(key=>({wch:Math.max(14,Math.min(30,(LABELS[key]||key).length+4))}));
+    XLSX.utils.book_append_sheet(wb,ws,"Packing Report");
+    XLSX.writeFile(wb,"Packing_Plant_Report_"+fromDate+"_to_"+toDate+".xlsx");
   }
 
   useEffect(() => { loadReport(); }, [reportKey]);
