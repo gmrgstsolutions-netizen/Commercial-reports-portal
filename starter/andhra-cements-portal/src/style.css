@@ -667,3 +667,26 @@ body{
     max-height: none;
   }
 }
+
+
+/* Commercial report tables follow the compact navy-and-blue Android report style. */
+.cr-panel { padding: 14px; }
+.cr-report-title { display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 12px; margin-bottom:12px; background:#eef2f7; border:1px solid #cbd5e1; color:#183653; text-align:center; }
+.cr-report-title b { color:#c00000; font:800 15px Manrope,sans-serif; letter-spacing:.25px; }
+.cr-report-title small { color:#536174; font-size:11px; font-weight:600; }
+.cr-section { margin-top:15px; }
+.cr-section h4 { margin:0; padding:8px 10px; background:#e8f0f8; border:1px solid #c8d5e3; color:#173653; font:700 11px Manrope,sans-serif; letter-spacing:.35px; }
+.cr-section h5 { margin:10px 0 0; color:#314b66; font-size:10px; text-transform:uppercase; }
+.cr-scroll { max-width:100%; overflow:auto; border:1px solid #d5dee8; }
+.cr-table { min-width:max-content; border-collapse:collapse; white-space:nowrap; font-size:11px; }
+.cr-table th { padding:8px 8px; background:#dce6f2; border:1px solid #aab9c9; color:#182b40; font-size:10px; text-transform:none; letter-spacing:0; position:sticky; top:0; z-index:1; }
+.cr-table td { padding:7px 8px; border:1px solid #d2dbe5; color:#25364a; font-size:11px; }
+.cr-table tr.total td { background:#fff4c9; color:#9b342d; font-weight:800; border:1px solid #d2be80; }
+.cr-table.cr-small { font-size:10px; }
+.cr-table.cr-small th,.cr-table.cr-small td { padding:6px 6px; font-size:10px; }
+.cr-shift { margin:12px 0 0; padding:9px; text-align:center; background:#ffeb3b; color:#c00000; font-size:12px; font-weight:800; }
+@media(max-width:760px) {
+ .cr-panel { padding:10px; }
+ .cr-report-title b { font-size:13px; }
+ .cr-table th,.cr-table td { padding:6px; }
+}
