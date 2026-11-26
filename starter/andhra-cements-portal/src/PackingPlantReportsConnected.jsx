@@ -92,12 +92,12 @@ export default function PackingPlantReportsConnected({ supabase }) {
       });
       ws.properties.defaultRowHeight = 33.95;
       ws.columns = [
-        { key: "margin", width: 5.85 }, { key: "counter", width: 20.85 },
-        { key: "date", width: 16 }, { key: "count", width: 16 },
-        { key: "stop", width: 10 }, { key: "restart", width: 10 },
-        { key: "duration", width: 13.28 }, { key: "reason", width: 34.28 },
-        { key: "category", width: 33.42 }, { key: "stoppage", width: 25.85 },
-        { key: "running", width: 18.28 }, { key: "production", width: 20.85 }
+        { key: "margin", width: 2.5 }, { key: "counter", width: 13 },
+        { key: "date", width: 12 }, { key: "count", width: 11 },
+        { key: "stop", width: 8 }, { key: "restart", width: 8 },
+        { key: "duration", width: 9 }, { key: "reason", width: 24 },
+        { key: "category", width: 19 }, { key: "stoppage", width: 14 },
+        { key: "running", width: 12 }, { key: "production", width: 14 }
       ];
       ws.views = [{ showGridLines: false }];
       ws.mergeCells("B2:B5");
@@ -112,15 +112,15 @@ export default function PackingPlantReportsConnected({ supabase }) {
       };
       ws.getCell("C5").value = fromDate === toDate ? "Date:" + dateLabel(fromDate) : "Period: " + dateLabel(fromDate) + " to " + dateLabel(toDate);
       [2,3,4,5].forEach(r => {
-        ws.getRow(r).height = 20.25;
+        ws.getRow(r).height = 17;
         const c = ws.getCell("C"+r);
-        c.font = { name: "Calibri", size: r===5?11:14, bold: true, color: { argb: r===4 ? "FFC00000" : "FF000000" } };
+        c.font = { name: "Calibri", size: r===5?9:12, bold: true, color: { argb: r===4 ? "FFC00000" : "FF000000" } };
         c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
         c.alignment = { horizontal: r===5 ? "right" : "center", vertical: "middle" };
         c.border = { top:{style:"thin"},bottom:{style:r===5?"medium":"thin"},left:{style:"thin"},right:{style:"thin"} };
       });
       const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
-      ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 225, height: 225 } });
+      ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 105, height: 72 } });
 
       const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
       const merges = ["B","C","D","E","F","G","H","I","J","K","L"];
@@ -128,12 +128,12 @@ export default function PackingPlantReportsConnected({ supabase }) {
       headers.forEach((label,i) => {
         const cell = ws.getCell(6,i+2);
         cell.value = label;
-        cell.font = { name: "Calibri", size: 16, bold: true, color: { argb: "FF000000" } };
+        cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF000000" } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7E6E6" } };
         cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
         cell.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"thin"} };
       });
-      [6,7,8].forEach(r => ws.getRow(r).height = 28.35);
+      [6,7,8].forEach(r => ws.getRow(r).height = 18);
 
       const order = { "Packer 1":1, "Bulk Loading":2, "Packer 2":3, "Packer 3":4 };
       const groups = [...stoppageGroups].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
@@ -154,11 +154,11 @@ export default function PackingPlantReportsConnected({ supabase }) {
         ws.mergeCells(rowNo,2,rowNo,12);
         const label = group.asset==="Bulk Loading" ? "Bulk" : group.asset==="Packer 3" ? "PACKER -3" : group.asset.toUpperCase().replace("PACKER ","PACKER-");
         section.getCell(2).value = label;
-        section.getCell(2).font = { name:"Calibri",size:16,bold:false,color:{argb:"FF000000"} };
+        section.getCell(2).font = { name:"Calibri",size:11,bold:true,color:{argb:"FF000000"} };
         section.getCell(2).fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFE7E6E6"} };
         section.getCell(2).alignment = { horizontal:"center",vertical:"middle" };
         section.getCell(2).border = { top:{style:"medium"},bottom:{style:"thin"},left:{style:"medium"},right:{style:"medium"} };
-        section.height = 33.95;
+        section.height = 20;
         rowNo++;
         const items = details.length ? details : [null];
         const first = rowNo;
@@ -174,13 +174,13 @@ export default function PackingPlantReportsConnected({ supabase }) {
           row.getCell(9).value = item ? (item.stoppage_classification??"") : "";
           for(let col=2;col<=12;col++){
             const cell=row.getCell(col);
-            cell.font={name:"Calibri",size:16,bold:false,color:{argb:"FF000000"}};
+            cell.font={name:"Calibri",size:10,bold:false,color:{argb:"FF000000"}};
             cell.alignment={horizontal:"center",vertical:"center",wrapText:true};
             cell.border=thinBorder;
           }
           row.getCell(3).numFmt="dd.mm.yyyy";
           row.getCell(5).numFmt="hh:mm"; row.getCell(6).numFmt="hh:mm"; row.getCell(7).numFmt="[h]:mm";
-          row.height=33.95;
+          row.height=21;
           rowNo++;
         });
         const last = rowNo-1;
@@ -191,7 +191,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         ws.getCell(first,10).numFmt="[h]:mm"; ws.getCell(first,11).numFmt="[h]:mm"; ws.getCell(first,12).numFmt="0.00";
         for(const col of [10,11,12]){
           const cell=ws.getCell(first,col);
-          cell.font={name:"Calibri",size:15,bold:false,color:{argb:"FF000000"}};
+          cell.font={name:"Calibri",size:10,bold:false,color:{argb:"FF000000"}};
           cell.alignment={horizontal:"center",vertical:"center",wrapText:true};
           cell.border=thinBorder;
         }
@@ -202,18 +202,18 @@ export default function PackingPlantReportsConnected({ supabase }) {
       ws.mergeCells(totalRow,10,totalRow,11);
       const totalLabel = ws.getCell(totalRow,10);
       totalLabel.value = "TOTAL PRODUCTION (MT)";
-      totalLabel.font = { name:"Calibri",size:16,bold:true,color:{argb:"FF000000"} };
+      totalLabel.font = { name:"Calibri",size:11,bold:true,color:{argb:"FF000000"} };
       totalLabel.alignment = { horizontal:"right",vertical:"middle" };
       totalLabel.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFE7E6E6"} };
       totalLabel.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"thin"} };
       const totalValue = ws.getCell(totalRow,12);
       totalValue.value = productionCells.length ? { formula:"SUM("+productionCells.join(",")+")" } : 0;
-      totalValue.font = { name:"Calibri",size:18,bold:true,color:{argb:"FF000000"} };
+      totalValue.font = { name:"Calibri",size:12,bold:true,color:{argb:"FF000000"} };
       totalValue.numFmt="0.00";
       totalValue.alignment={horizontal:"center",vertical:"middle"};
       totalValue.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFFFF2CC"} };
       totalValue.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"medium"} };
-      ws.getRow(totalRow).height=30;
+      ws.getRow(totalRow).height=22;
       ws.pageSetup.printArea="B2:L"+totalRow;
       ws.pageSetup.printTitlesRow="2:8";
       ws.pageSetup.horizontalCentered=true;
