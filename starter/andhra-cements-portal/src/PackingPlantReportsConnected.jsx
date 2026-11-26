@@ -261,20 +261,39 @@ export default function PackingPlantReportsConnected({ supabase }) {
     {!busy && data && <div className="panel">
       <div className="panel-title"><h3>{selected.label}</h3><span className="pill">{rows.length.toLocaleString("en-IN")} rows · MT where applicable</span></div>
       {rows.length ? reportKey === "daily_stoppage" ? <div className="stoppage-report">
-        <div className="stoppage-report-heading"><strong>ANDHRA CEMENTS LIMITED – DACHEPALLI</strong><b>STOPPAGE ANALYSIS REPORT</b><span>Period: {fromDate} to {toDate}</span></div>
-        {stoppageGroups.map((group,gi)=>{
-          const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined);
-          const running=group.rows.reduce((n,x)=>n+(Number(x.day_running_hours)||0),0);
-          const stopped=group.rows.reduce((n,x)=>n+(Number(x.day_stoppage_hours)||0),0);
-          const production=group.rows.reduce((n,x)=>n+(Number(x.day_production_mt)||0),0);
-          return <div className="stoppage-asset-section" key={gi}>
-            <h4>{group.asset}<span>{group.date}</span></h4>
-            <div className="table-scroll"><table><thead><tr><th>Stop No.</th><th>Date</th><th>Stop Time</th><th>Restart Time</th><th>Duration (Hours)</th><th>Reason for Stoppage</th><th>Stoppage Category</th><th>Day Stoppage Hours</th><th>Day Running Hours</th><th>Day Production (MT)</th></tr></thead>
-              <tbody>{details.length?details.map((row,i)=><tr key={i}><td className="num">{display(row.stop_number,"stop_number")}</td><td>{display(row.business_date)}</td><td>{display(row.stop_time)}</td><td>{display(row.start_time)}</td><td className="num">{display(row.duration_hours,"duration_hours")}</td><td>{display(row.reason)}</td><td>{display(row.stoppage_classification)}</td><td className="num">{Number(row.day_stoppage_hours)?display(row.day_stoppage_hours,"day_stoppage_hours"):""}</td><td className="num">{Number(row.day_running_hours)?display(row.day_running_hours,"day_running_hours"):""}</td><td className="num">{Number(row.day_production_mt)?display(row.day_production_mt,"day_production_mt"):""}</td></tr>):<tr><td colSpan="10" className="muted">No stoppage recorded</td></tr>}</tbody>
-            </table></div>
-          </div>;
-        })}
-      </div> : <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
+        <div className="stoppage-report-heading">
+          <img alt="Andhra Cements" src={"data:image/png;base64," + logoBase64.trim()} />
+          <div><strong>ANDHRA CEMENTS LIMITED</strong><span>DACHEPALLI</span><b>STOPPAGE ANALYSIS REPORT</b><small>{fromDate === toDate ? "Date: " + new Date(fromDate+"T00:00:00").toLocaleDateString("en-GB") : "Period: " + new Date(fromDate+"T00:00:00").toLocaleDateString("en-GB") + " to " + new Date(toDate+"T00:00:00").toLocaleDateString("en-GB")}</small></div>
+        </div>
+        <div className="table-scroll">
+          <table className="stoppage-master-table">
+            <thead><tr>{["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+            <tbody>
+              {stoppageGroups.map((group,gi)=>{
+                const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined).sort((a,b)=>Number(a.stop_number)-Number(b.stop_number));
+                const summary=group.rows.find(x=>Number(x.day_stoppage_hours)||Number(x.day_running_hours)||Number(x.day_production_mt))||group.rows[0]||{};
+                const items=details.length?details:[null];
+                const assetLabel=group.asset==="Bulk Loading"?"Bulk":group.asset==="Packer 3"?"PACKER -3":group.asset.toUpperCase().replace("PACKER ","PACKER-");
+                return <React.Fragment key={gi}>
+                  <tr className="stoppage-asset-title"><td colSpan={11}>{assetLabel}</td></tr>
+                  {items.map((item,i)=><tr key={i}>
+                    <td>{item?.stop_number??""}</td>
+                    <td>{new Date(group.date+"T00:00:00").toLocaleDateString("en-GB")}</td>
+                    <td>{details.length}</td>
+                    <td>{item?.stop_time??""}</td>
+                    <td>{item?.start_time??""}</td>
+                    <td>{item?.duration_hours==null?"":Number(item.duration_hours).toFixed(2)}</td>
+                    <td>{item?.reason??(details.length?"":"No stoppage recorded")}</td>
+                    <td>{item?.stoppage_classification??""}</td>
+                    {i===0&&<><td rowSpan={items.length}>{Number(summary.day_stoppage_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_running_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td></>}
+                  </tr>)}
+                </React.Fragment>;
+              })}
+              <tr className="stoppage-grand-total"><td colSpan={9}></td><td colSpan={1}>TOTAL PRODUCTION (MT)</td><td>{stoppageGroups.reduce((n,g)=>n+Number((g.rows.find(x=>Number(x.day_production_mt))||g.rows[0]||{}).day_production_mt||0),0).toFixed(2)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>: <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
         {rows.map((row, i) => <tr key={i}>{columns.map(k => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{display(row[k], k)}</td>)}</tr>)}
         {Object.keys(totals).length > 0 && <tr className="total">{columns.map((k,i) => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{i===0 ? "Grand Total" : Object.prototype.hasOwnProperty.call(totals,k) ? display(totals[k],k) : ""}</td>)}</tr>}
       </tbody></table></div> : <p className="muted">No records found for the selected dates. Enter running intervals and classify stoppage periods for the full business date, then save daily records. Production is sourced from dispatch records and intervals are adjusted to the agreed TPH targets.</p>}
