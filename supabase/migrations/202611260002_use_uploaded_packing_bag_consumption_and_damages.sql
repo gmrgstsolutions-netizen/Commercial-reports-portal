@@ -32,7 +32,7 @@ AS $function$
   full outer join public.packing_bag_usage_uploads u
     on u.bag_type_id=d.bag_type_id and u.usage_date=d.usage_date
   where coalesce(d.usage_date,u.usage_date) between p_from and p_to;
-$function$
+$function$;
 
 revoke all on function private.packing_bag_usage_daily(date,date) from public, anon, authenticated;
 
@@ -285,5 +285,4 @@ begin
 
   return v_result;
 end;
-$function$
-
+$function$;
