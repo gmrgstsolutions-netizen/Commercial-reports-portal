@@ -302,13 +302,14 @@ function App() {
       "Damages YTD": Number(totals.damages_ytd || 0),
       "Closing": totals.closing_balance == null ? "Not Set" : Number(totals.closing_balance || 0)
     });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{wch:9},{wch:20},{wch:62},{wch:10},...Array.from({length:11},()=>({wch:17}))];
-    XLSX.utils.sheet_add_aoa(ws, [
+    const ws = XLSX.utils.aoa_to_sheet([
       ["ANDHRA CEMENTS - PACKING BAGS STOCK STATEMENT"],
       ["Report Date", reportDate],
-      ["All quantities in NOS"]
-    ], {origin:"A1"});
+      ["All quantities in NOS"],
+      []
+    ]);
+    XLSX.utils.sheet_add_json(ws, rows, {origin:"A5"});
+    ws["!cols"] = [{wch:9},{wch:20},{wch:62},{wch:10},...Array.from({length:11},()=>({wch:17}))];
     ws["!merges"] = [{s:{r:0,c:0},e:{r:0,c:14}},{s:{r:2,c:0},e:{r:2,c:14}}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Stock Statement");
