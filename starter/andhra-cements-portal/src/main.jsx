@@ -11,6 +11,7 @@ import PackingPlantReportsConnected from "./PackingPlantReportsConnected.jsx";
 import CementDispatchUpload from "./CementDispatchUpload.jsx";
 import ClinkerDispatchUpload from "./ClinkerDispatchUpload.jsx";
 import PackingBagUsageUpload from "./PackingBagUsageUpload.jsx";
+import CommercialReportLayout from "./CommercialReportLayout.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -59,17 +60,27 @@ function App() {
   const [weighToDate, setWeighToDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [rawFromDate, setRawFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
   const [rawToDate, setRawToDate] = useState(new Date().toLocaleDateString("en-CA"));
-  const weighReports = [{key:"datewise",label:"Datewise Report",rpc:"get_weighbridge_report"},{key:"product_summary",label:"Consolidated Product Summary",rpc:"get_weighbridge_product_summary"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
+  const [rawFilters, setRawFilters] = useState({p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:""});
+  const [scrapReportKey, setScrapReportKey] = useState("summary");
+  const [scrapData, setScrapData] = useState(null);
+  const [scrapBusy, setScrapBusy] = useState(false);
+  const [scrapError, setScrapError] = useState("");
+  const [scrapFromDate, setScrapFromDate] = useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toLocaleDateString("en-CA"));
+  const [scrapToDate, setScrapToDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [scrapFilters, setScrapFilters] = useState({p_invno:"",p_invoicedate:"",p_itemcode:"",p_customercode:"",p_customer:"",p_vehicleno:"",p_destination:"",p_state:""});
+  const weighReports = [{key:"datewise",label:"Weighbridge Consolidated",rpc:"get_weighbridge_report"},{key:"product_summary",label:"Consolidated Product Summary",rpc:"get_weighbridge_product_summary"},{key:"pending",label:"Pending Report",rpc:"get_weighbridge_pending_report"},{key:"outside",label:"Outside Main Gate",rpc:"get_weighbridge_outside_report"},{key:"raw_materials",label:"Weighbridge Report - Raw Materials",rpc:"get_weighbridge_raw_material_report"},{key:"transaction_wise",label:"Weighbridge Transaction-wise",rpc:"get_weighbridge_transaction_report"}];
   const dispatchReports = [
     {key:"product_wise",label:"Product-wise Dispatch",rpc:"get_state_district_report"},
-    {key:"state_district",label:"State / District",rpc:"get_state_district_report"},
-    {key:"transporter",label:"Transporter-wise",rpc:"get_transporter_dispatch_report"},
+    {key:"state_district",label:"State / District-wise Dispatch",rpc:"get_state_district_report"},
+    {key:"transporter",label:"Dispatches - Transporter wise",rpc:"get_transporter_dispatch_report"},
+    {key:"transporter_day_wise",label:"Transporter - Day wise",rpc:"get_transporter_day_wise_report"},
     {key:"under_loading",label:"Under Loading",rpc:"get_under_loading_report"},
-    {key:"clinker_customer",label:"Clinker Sales – Customer-wise",rpc:"get_clinker_customer_report"},
+    {key:"clinker_customer",label:"Clinker Sales - Customer wise",rpc:"get_clinker_customer_report"},
     {key:"invoice_wise",label:"Invoice-wise",rpc:"get_invoice_wise_report_v2"},
-    {key:"trade_non_trade",label:"Trade / Non-Trade Summary",rpc:"get_trade_non_dispatches"},
-    {key:"monthly_yearly",label:"Month-wise Financial Year Summary",rpc:"get_month_wise_yearly_report"}
+    {key:"trade_non_trade",label:"Trade-Non-Dispatches",rpc:"get_trade_non_dispatches"},
+    {key:"monthly_yearly",label:"Month wise-Yearly",rpc:"get_month_wise_yearly_report"}
   ];
+  const scrapReports = [{key:"summary",label:"Scrap Sales",rpc:"get_scrap_sales_report"},{key:"invoice_wise",label:"Scrap Sales - Invoice Wise",rpc:"get_scrap_invoice_wise_report_v2"}];
 
 
   useEffect(() => {
@@ -110,7 +121,11 @@ function App() {
 
   useEffect(() => {
     if (session?.user && reportType==="Weighbridge Reports") loadWeighbridge();
-  }, [session, reportDate, reportType, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate]);
+  }, [session, reportDate, reportType, weighReportKey, weighFromDate, weighToDate, rawFromDate, rawToDate, rawFilters]);
+
+  useEffect(() => {
+    if (session?.user && reportType==="Scrap Reports") loadScrap();
+  }, [session, reportDate, reportType, scrapReportKey, scrapFromDate, scrapToDate, scrapFilters]);
 
   async function loadData() {
     setBusy(true); setError("");
@@ -232,16 +247,44 @@ function App() {
         if (span<0) throw new Error("From date must be before To date.");
         if (span>92) throw new Error("Transaction-wise report supports a maximum 93-day date range.");
       }
-      const args = weighReportKey === "raw_materials"
-        ? {p_date_from:rawFromDate || monthStart,p_date_to:rawToDate || today,p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:"",p_limit:2000}
-        : weighReportKey === "transaction_wise"
-          ? {p_date_from:transactionFrom,p_date_to:transactionTo}
-          : {p_date:reportDate};
-      const {data,error:rpcError} = await supabase.rpc(selected.rpc,args);
-      if (rpcError) throw rpcError;
-      setWeighData(data ?? null);
+      let result;
+      if (weighReportKey === "raw_materials") {
+        const args={p_date_from:rawFromDate||monthStart,p_date_to:rawToDate||today,...rawFilters,p_limit:2000};
+        const response=await supabase.rpc(selected.rpc,args); if(response.error) throw response.error; result=response.data;
+      } else if (weighReportKey === "transaction_wise") {
+        const response=await supabase.rpc(selected.rpc,{p_date_from:transactionFrom,p_date_to:transactionTo}); if(response.error) throw response.error; result=response.data;
+      } else if (weighReportKey === "datewise") {
+        const latest=await supabase.rpc("get_weighbridge_latest_dates",{p_date:reportDate}); if(latest.error) throw latest.error;
+        const completedDate=latest.data?.completed_date||reportDate, pendingDate=latest.data?.pending_date||reportDate, outsideDate=latest.data?.outside_date||reportDate;
+        const [completed,pending,outside,signoff]=await Promise.all([
+          supabase.rpc("get_weighbridge_report",{p_date:completedDate}),
+          supabase.rpc("get_weighbridge_pending_report",{p_date:pendingDate}),
+          supabase.rpc("get_weighbridge_outside_report",{p_date:outsideDate}),
+          supabase.rpc("get_shift_incharge",{p_report_type:"weighbridge",p_report_date:reportDate})
+        ]);
+        if(completed.error) throw completed.error; if(pending.error) throw pending.error; if(outside.error) throw outside.error;
+        result={...(completed.data||{}),report_date:reportDate,completed_source_date:completedDate,pending_source_date:pendingDate,outside_source_date:outsideDate,pending_rows:pending.data||[],outside_rows:outside.data||[],shift_incharge_name:signoff.error?"":signoff.data||""};
+      } else {
+        const response=await supabase.rpc(selected.rpc,{p_date:reportDate}); if(response.error) throw response.error;
+        result=weighReportKey==="pending"||weighReportKey==="outside"?{rows:response.data||[],report_date:reportDate}:response.data;
+      }
+      setWeighData(result ?? null);
     } catch(e) { setWeighData(null); setWeighError(e.message || "Unable to load this Weighbridge report."); }
     finally { setWeighBusy(false); }
+  }
+
+  async function loadScrap(filterOverride = null) {
+    if (!supabase || !session?.user) return;
+    setScrapBusy(true); setScrapError("");
+    try {
+      let args;
+      if(scrapReportKey==="summary") args={p_date:reportDate};
+      else args={p_months:[],p_date_from:scrapFromDate||null,p_date_to:scrapToDate||null,...(filterOverride||scrapFilters),p_limit:500};
+      const {data,error:rpcError}=await supabase.rpc(scrapReports.find(x=>x.key===scrapReportKey).rpc,args);
+      if(rpcError) throw rpcError;
+      setScrapData(data??null);
+    } catch(e) { setScrapData(null); setScrapError(e.message||"Unable to load this Scrap report."); }
+    finally { setScrapBusy(false); }
   }
 
   async function signIn(e) {
@@ -409,7 +452,7 @@ function App() {
     <div className="brand-mark">AC</div><p className="eyebrow">ANDHRA CEMENTS</p><h1>Commercial Reports Andhra Cements</h1><p className="muted">Secure reporting portal</p>
     <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username"/></label>
     <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/></label>
-    <label>Report Type<select className="report-select login-select" value={reportType} onChange={e=>setReportType(e.target.value)} required><option value="">Select Report Type</option><option>Dispatch Reports</option><option>Weighbridge Reports</option><option>Packing Plant Reports</option></select></label>
+    <label>Report Type<select className="report-select login-select" value={reportType} onChange={e=>setReportType(e.target.value)} required><option value="">Select Report Type</option><option>Dispatch Reports</option><option>Weighbridge Reports</option><option>Scrap Reports</option><option>Packing Plant Reports</option></select></label>
     <label>Shift Incharge Name<input type="text" value={shiftInchargeName} onChange={e=>setShiftInchargeName(e.target.value)} required maxLength={100} placeholder="Enter Shift Incharge Name"/></label>
     {error && <div className="alert error">{error}</div>}<button className="primary full">Sign in</button>
     <small>Use your existing portal account. Password reset is managed by the administrator.</small>
@@ -452,7 +495,7 @@ function App() {
         {dispatchReportKey==="invoice_wise" && <div className="panel"><div className="panel-title"><h3>Invoice-wise filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_invno","Invoice number"],["p_customer","Customer"],["p_warehouse","Warehouse"],["p_itemcode","Product code"],["p_saleschannel","Sales channel"],["p_oano","OA number"],["p_packslipno","Packslip number"],["p_vehicleno","Vehicle number"],["p_shippingstate","Shipping state"],["p_district","District"],["p_transporter","Transporter"]].map(([key,label])=><label key={key}>{label}<input value={invoiceFilters[key]} onChange={e=>setInvoiceFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label.toLowerCase()}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadDispatch}>Search invoices</button><button className="text-btn" onClick={()=>{const cleared={p_invno:"",p_customer:"",p_warehouse:"",p_itemcode:"",p_saleschannel:"",p_oano:"",p_packslipno:"",p_vehicleno:"",p_shippingstate:"",p_district:"",p_transporter:""};setInvoiceFilters(cleared);loadDispatch(cleared);}}>Clear filters</button></div></div>}
         {dispatchError && <div className="alert error">{dispatchError}</div>}
         {dispatchBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
-        {!dispatchBusy && dispatchData && (dispatchReportKey==="product_wise" ? <ProductWiseDispatchView data={dispatchData}/> : <ReportDataView data={dispatchData}/>) }
+        {!dispatchBusy && dispatchData && <CommercialReportLayout type="dispatch" reportKey={dispatchReportKey} data={dispatchData}/> }
         {!dispatchBusy && !dispatchError && dispatchData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
         <div className="alert warning">These connected reports are read-only. Invoice-wise results are limited to 1,000 rows; use the date range to narrow the result. Trade / Non-Trade is month-scoped. Financial-year summary requires the account to have All dates permission. Product-wise and other final report layouts will be mapped after their exact data sources are verified.</div>
       </section>) : reportType === "Weighbridge Reports" ? <section>
@@ -461,9 +504,18 @@ function App() {
         <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{weighReportKey==="raw_materials" ? rawFromDate+" to "+rawToDate : weighReportKey==="transaction_wise" ? weighFromDate+" to "+weighToDate : reportDate}</span></div><div className="mapping-grid"><label>Report<select value={weighReportKey} onChange={e=>setWeighReportKey(e.target.value)}>{weighReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div></div>
         {weighError && <div className="alert error">{weighError}</div>}
         {weighBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
-        {!weighBusy && weighData && <ReportDataView data={weighData}/>}
+        {!weighBusy && weighData && <CommercialReportLayout type="weighbridge" reportKey={weighReportKey} data={weighData}/>}
         {!weighBusy && !weighError && weighData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
-        <div className="alert warning">Card Issue Details is not connected yet: the verified database inventory contains no dedicated Card Issue table or RPC. It will not be substituted with Outside Main Gate. Transaction-wise report requires both dates and a maximum 93-day range. Upload workflows and export controls remain pending verification.</div>
+        {weighReportKey==="transaction_wise" && <div className="alert warning">Transaction-wise report supports a maximum 93-day date range. Use the date range to narrow large results.</div>}
+      {weighReportKey==="raw_materials" && <div className="panel"><div className="panel-title"><h3>Raw material search filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_pass_no","Pass No"],["p_rf_code","RF Code"],["p_vehicle_no","Vehicle No"],["p_dc_no","DC No"],["p_material","Material"],["p_supplier","Supplier"],["p_transporter","Transporter"],["p_shift","Shift"]].map(([key,label])=><label key={key}>{label}<input value={rawFilters[key]} onChange={e=>setRawFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={loadWeighbridge}>Search transactions</button><button className="text-btn" onClick={()=>setRawFilters({p_pass_no:"",p_rf_code:"",p_vehicle_no:"",p_dc_no:"",p_material:"",p_supplier:"",p_transporter:"",p_shift:""})}>Clear filters</button></div></div>}
+      </section> : reportType === "Scrap Reports" ? <section>
+        <div className="section-head"><div><span className="eyebrow">SCRAP REPORTS · READ-ONLY</span><h1>{scrapReports.find(x=>x.key===scrapReportKey)?.label}</h1><p className="muted">Scrap sales and invoice details in the same report structure as the Android viewer.</p></div>
+          {scrapReportKey==="invoice_wise" ? <div className="date-tools"><label>From date<input type="date" value={scrapFromDate} onChange={e=>setScrapFromDate(e.target.value)}/></label><label>To date<input type="date" value={scrapToDate} onChange={e=>setScrapToDate(e.target.value)}/></label><button className="secondary" onClick={loadScrap}><RefreshCw size={16}/>Refresh</button></div> : <div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadScrap}><RefreshCw size={16}/>Refresh</button></div>}</div>
+        <div className="panel"><div className="panel-title"><h3>Select report</h3><span className="pill">{scrapReportKey==="invoice_wise"?scrapFromDate+" to "+scrapToDate:reportDate}</span></div><div className="mapping-grid"><label>Report<select value={scrapReportKey} onChange={e=>setScrapReportKey(e.target.value)}>{scrapReports.map(x=><option key={x.key} value={x.key}>{x.label}</option>)}</select></label></div></div>
+        {scrapReportKey==="invoice_wise" && <div className="panel"><div className="panel-title"><h3>Scrap invoice filters</h3><span className="pill">Optional</span></div><div className="mapping-grid">{[["p_invno","Invoice number"],["p_invoicedate","Invoice date"],["p_itemcode","Item code"],["p_customercode","Customer code"],["p_customer","Customer name"],["p_vehicleno","Vehicle number"],["p_destination","Destination"],["p_state","State"]].map(([key,label])=><label key={key}>{label}<input value={scrapFilters[key]} onChange={e=>setScrapFilters(v=>({...v,[key]:e.target.value}))} placeholder={"Search "+label.toLowerCase()}/></label>)}</div><div className="date-tools"><button className="secondary" onClick={()=>loadScrap()}>Search invoices</button><button className="text-btn" onClick={()=>{const cleared={p_invno:"",p_invoicedate:"",p_itemcode:"",p_customercode:"",p_customer:"",p_vehicleno:"",p_destination:"",p_state:""};setScrapFilters(cleared);loadScrap(cleared);}}>Clear filters</button></div></div>}
+        {scrapError && <div className="alert error">{scrapError}</div>}{scrapBusy && <div className="panel"><p>Loading report from Supabase…</p></div>}
+        {!scrapBusy && scrapData && <CommercialReportLayout type="scrap" reportKey={scrapReportKey} data={scrapData}/>}
+        {!scrapBusy && !scrapError && scrapData===null && <div className="panel"><p className="muted">Select Refresh to load the report.</p></div>}
       </section> :
       <>
         {tab==="Packing Plant Operations" && <PackingPlantConnected supabase={supabase} session={session} profile={profile} shiftInchargeName={shiftInchargeName}/>}
