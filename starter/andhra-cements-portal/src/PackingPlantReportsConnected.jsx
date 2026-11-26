@@ -108,7 +108,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       ws.getCell("C4").value = "STOPPAGE ANALYSIS REPORT";
       const dateLabel = (value) => {
         const d = new Date(value + "T00:00:00");
-        return d.toLocaleDateString("en-GB").replace(/\\//g, ".");
+        return d.toLocaleDateString("en-GB");
       };
       ws.getCell("C5").value = fromDate === toDate ? "Date:" + dateLabel(fromDate) : "Period: " + dateLabel(fromDate) + " to " + dateLabel(toDate);
       [2,3,4,5].forEach(r => {
@@ -122,7 +122,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
       ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 225, height: 225 } });
 
-      const headers = ["Stops Counter","Date","STOPs          in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
+      const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
       const merges = ["B","C","D","E","F","G","H","I","J","K","L"];
       merges.forEach(col => ws.mergeCells(col+"6:"+col+"8"));
       headers.forEach((label,i) => {
@@ -166,7 +166,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
           const row = ws.getRow(rowNo);
           row.getCell(2).value = item ? (item.stop_number??index+1) : "";
           row.getCell(3).value = group.date ? new Date(group.date+"T00:00:00") : "";
-          row.getCell(4).value = "";
+          row.getCell(4).value = details.length;
           row.getCell(5).value = item ? timeValue(item.stop_time) : "";
           row.getCell(6).value = item ? timeValue(item.start_time) : "";
           row.getCell(7).value = item && Number.isFinite(Number(item.duration_hours)) ? Number(item.duration_hours)/24 : "";
@@ -199,12 +199,23 @@ export default function PackingPlantReportsConnected({ supabase }) {
         rowNo++;
       }
       const totalRow = rowNo+2;
-      ws.getCell(totalRow,12).value = productionCells.length ? { formula:"SUM("+productionCells.join(",")+")" } : 0;
-      ws.getCell(totalRow,12).font = { name:"Calibri",size:20,bold:false,color:{argb:"FF000000"} };
-      ws.getCell(totalRow,12).numFmt="0.00";
-      ws.getCell(totalRow,12).alignment={horizontal:"center",vertical:"center"};
-      ws.getRow(totalRow).height=28;
+      ws.mergeCells(totalRow,10,totalRow,11);
+      const totalLabel = ws.getCell(totalRow,10);
+      totalLabel.value = "TOTAL PRODUCTION (MT)";
+      totalLabel.font = { name:"Calibri",size:16,bold:true,color:{argb:"FF000000"} };
+      totalLabel.alignment = { horizontal:"right",vertical:"middle" };
+      totalLabel.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFE7E6E6"} };
+      totalLabel.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"thin"} };
+      const totalValue = ws.getCell(totalRow,12);
+      totalValue.value = productionCells.length ? { formula:"SUM("+productionCells.join(",")+")" } : 0;
+      totalValue.font = { name:"Calibri",size:18,bold:true,color:{argb:"FF000000"} };
+      totalValue.numFmt="0.00";
+      totalValue.alignment={horizontal:"center",vertical:"middle"};
+      totalValue.fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFFFF2CC"} };
+      totalValue.border = { top:{style:"medium"},bottom:{style:"medium"},left:{style:"thin"},right:{style:"medium"} };
+      ws.getRow(totalRow).height=30;
       ws.pageSetup.printArea="B2:L"+totalRow;
+      ws.pageSetup.printTitlesRow="2:8";
       ws.pageSetup.horizontalCentered=true;
       const buffer=await workbook.xlsx.writeBuffer();
       const blob=new Blob([buffer],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
