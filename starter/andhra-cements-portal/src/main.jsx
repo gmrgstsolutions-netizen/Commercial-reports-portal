@@ -484,6 +484,9 @@ function App() {
             {stockRows.map((r,i)=><tr key={r.code}><td>{i+1}</td><td><b>{r.name}</b></td>
               {(tab==="Consumption"?[r.consumption_od,r.consumption_mtd,r.consumption_ytd]:tab==="Damages"?[r.damages_od,r.damages_mtd,r.damages_ytd]:tab==="Daily Summary"?[r.receipts_od,r.consumption_od,r.damages_od,r.opening_balance_set?r.closing_balance:"Not Set"]:tab==="Monthly Summary"?[r.receipts_mtd,r.consumption_mtd,r.damages_mtd]:[r.opening_balance_set?r.opening_balance:"Not Set",r.receipts_ytd,r.consumption_ytd,r.damages_ytd,r.opening_balance_set?r.closing_balance:"Not Set"]).map((v,j)=><td className="num" key={j}>{v==="Not Set"?v:fmt(v)}</td>)}
             </tr>)}
+            <tr className="total"><td colSpan="2">Grand Total</td>
+              {(tab==="Consumption"?[totals.consumption_od,totals.consumption_mtd,totals.consumption_ytd]:tab==="Damages"?[totals.damages_od,totals.damages_mtd,totals.damages_ytd]:tab==="Daily Summary"?[totals.receipts_od,totals.consumption_od,totals.damages_od,totals.closing_balance]:tab==="Monthly Summary"?[totals.receipts_mtd,totals.consumption_mtd,totals.damages_mtd]:[totals.opening_balance,totals.receipts_ytd,totals.consumption_ytd,totals.damages_ytd,totals.closing_balance]).map((v,j)=><td className="num" key={j}>{v==null?"Not Set":fmt(v)}</td>)}
+            </tr>
             </tbody></table></div>
             <p className="footnote">{tab==="Monthly Summary"?"MTD means the first day of the selected month through the selected report date.":tab==="Financial Year Summary"?"YTD means 1 April through the selected report date (April–March financial year).":"OD means the selected report date. MTD and YTD values are provided by the existing database calculation."} A historical month-by-month ledger is not yet available from the verified report function, so this screen shows the available period totals rather than inventing historical rows.</p>
           </div>
