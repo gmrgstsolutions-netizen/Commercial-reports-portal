@@ -387,3 +387,30 @@ body{
 .pp-prototype .pp-time-select:disabled{opacity:.65;cursor:not-allowed}
 .pp-prototype .pp-add-interval{font-weight:700;min-height:36px}
 .pp-prototype .table-scroll td{vertical-align:middle}
+
+/* Daily stoppage report — compact layout matching the supplied master sheet */
+.stoppage-report{gap:8px}
+.stoppage-report-heading{position:relative;min-height:76px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:5px 110px 8px 110px;gap:2px}
+.stoppage-report-heading img{position:absolute;left:4px;top:2px;width:88px;height:68px;object-fit:contain}
+.stoppage-report-heading strong{font-size:14px;line-height:1.2}
+.stoppage-report-heading span{font-size:10px;font-weight:700}
+.stoppage-report-heading b{font-size:12px;line-height:1.2}
+.stoppage-report-heading small{font-size:9px;color:#536b82}
+.stoppage-master-table{table-layout:fixed;width:100%;white-space:normal;font-size:10px;border-collapse:collapse}
+.stoppage-master-table th{padding:6px 4px;font-size:9px;line-height:1.15;text-align:center;white-space:normal;vertical-align:middle;background:#e7e6e6;color:#1d2a3a;border:1px solid #aeb7c1}
+.stoppage-master-table td{padding:4px 4px;font-size:10px;line-height:1.2;white-space:normal;vertical-align:middle;text-align:center;border:1px solid #c7cdd3;color:#263545}
+.stoppage-master-table th:nth-child(1){width:8%}
+.stoppage-master-table th:nth-child(2){width:8%}
+.stoppage-master-table th:nth-child(3){width:8%}
+.stoppage-master-table th:nth-child(4),.stoppage-master-table th:nth-child(5){width:6%}
+.stoppage-master-table th:nth-child(6){width:7%}
+.stoppage-master-table th:nth-child(7){width:18%}
+.stoppage-master-table th:nth-child(8){width:14%}
+.stoppage-master-table th:nth-child(9){width:9%}
+.stoppage-master-table th:nth-child(10){width:8%}
+.stoppage-master-table th:nth-child(11){width:8%}
+.stoppage-master-table .stoppage-asset-title td{padding:5px 6px;background:#e7e6e6;font-weight:800;text-align:center;font-size:11px;color:#1d2a3a}
+.stoppage-master-table .stoppage-grand-total td{padding:6px 5px;font-weight:800;border-top:2px solid #66717d;border-bottom:2px solid #66717d}
+.stoppage-master-table .stoppage-grand-total td:nth-last-child(2){text-align:right;background:#e7e6e6}
+.stoppage-master-table .stoppage-grand-total td:last-child{background:#fff2cc;font-size:11px}
+@media(max-width:760px){.stoppage-report-heading{padding-left:88px;padding-right:6px}.stoppage-report-heading img{width:70px;height:58px}.stoppage-master-table{min-width:920px}}
