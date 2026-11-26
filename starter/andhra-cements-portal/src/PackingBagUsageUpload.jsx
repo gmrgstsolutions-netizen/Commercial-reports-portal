@@ -28,12 +28,42 @@ export default function PackingBagUsageUpload({supabase,bagTypes,isAdmin,onUploa
   const [map,setMap]=useState({date:"",bag:"",consumption:"",damages:"",remarks:""});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
   function parseSheet(wb,name) {
-    const data=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:"",raw:true}).filter(r=>Object.values(r).some(v=>String(v??"").trim()!==""));
-    const cols=data.length?Object.keys(data[0]):[];
-    const find=terms=>cols.find(c=>terms.some(t=>norm(c).includes(t)))||"";
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:"",raw:true});
+    const source=raw.filter(r=>Object.values(r).some(v=>String(v??"").trim()!==""));
+    const sourceCols=source.length?Object.keys(source[0]):[];
+    const find=terms=>sourceCols.find(c=>terms.some(t=>norm(c).includes(t)))||"";
+    const dateCol=find(["usagedate","consumptiondate","date","postingdate"]);
+    const bagCols=sourceCols.filter(c=>/^bagtype\\d*$/.test(norm(c)));
+    let data=source, cols=sourceCols, wide=false;
+    if(dateCol && bagCols.length>1) {
+      wide=true;
+      const dateIndex=sourceCols.indexOf(dateCol);
+      const groups=bagCols.map(bagCol=>{
+        const i=sourceCols.indexOf(bagCol);
+        return {bagCol,consumptionCol:sourceCols[i+1],damagesCol:sourceCols[i+2]};
+      });
+      data=[];
+      for(const r of source) {
+        const dateValue=r[dateCol];
+        if(!isoDate(dateValue)) continue;
+        for(const g of groups) {
+          const bag=String(r[g.bagCol]??"").trim();
+          if(!bag) continue;
+          data.push({Date:dateValue,"Bag Type":bag,Consumption:r[g.consumptionCol],Damages:r[g.damagesCol]});
+        }
+      }
+      cols=["Date","Bag Type","Consumption","Damages"];
+    }
     setRows(data);setHeaders(cols);
-    setMap({date:find(["usagedate","consumptiondate","date","postingdate"]),bag:find(["bagtype","bagname","packingmaterial","material"]),consumption:find(["consumptionqty","consumption","consumedqty","consumed","qtyconsumed"]),damages:find(["damagesqty","damageqty","damages","damage"]),remarks:find(["remarks","narration","description"])});
-    setMessage(data.length?data.length.toLocaleString("en-IN")+" rows loaded. Check the column mapping and preview before submitting.":"No data rows found in this worksheet.");
+    const findMapped=terms=>cols.find(c=>terms.some(t=>norm(c).includes(t)))||"";
+    setMap({
+      date:wide?"Date":findMapped(["usagedate","consumptiondate","date","postingdate"]),
+      bag:wide?"Bag Type":findMapped(["bagtype","bagname","packingmaterial","material"]),
+      consumption:wide?"Consumption":findMapped(["consumptionqty","consumption","consumedqty","consumed","qtyconsumed"]),
+      damages:wide?"Damages":findMapped(["damagesqty","damageqty","damages","damage"]),
+      remarks:findMapped(["remarks","narration","description"])
+    });
+    setMessage(data.length?data.length.toLocaleString("en-IN")+" date-wise bag records loaded"+(wide?" from "+groups.length+" side-by-side bag-type columns.":" . Check the column mapping and preview before submitting."):"No data rows found in this worksheet.");
   }
   async function chooseFile(f) {
     setFile(f);setWorkbook(null);setRows([]);setHeaders([]);setMessage("");setError("");
