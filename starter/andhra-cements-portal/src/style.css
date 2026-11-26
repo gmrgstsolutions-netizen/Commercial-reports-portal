@@ -486,3 +486,39 @@ body{
   .stoppage-report{padding:6px}
   .stoppage-report .table-scroll{border-radius:2px}
 }
+
+
+/* Keep the logo fully inside its reserved header area */
+.stoppage-report-heading{
+  min-height:78px;
+  padding:6px 12px 6px 108px;
+  box-sizing:border-box;
+}
+.stoppage-report-heading img{
+  position:absolute;
+  left:8px;
+  top:50%;
+  transform:translateY(-50%);
+  width:82px;
+  height:60px;
+  max-width:82px;
+  max-height:60px;
+  object-fit:contain;
+  object-position:center;
+  display:block;
+  margin:0;
+}
+@media(max-width:760px){
+  .stoppage-report-heading{
+    min-height:70px;
+    padding-left:88px;
+    padding-right:5px;
+  }
+  .stoppage-report-heading img{
+    left:5px;
+    width:68px;
+    height:52px;
+    max-width:68px;
+    max-height:52px;
+  }
+}
