@@ -9,6 +9,7 @@ import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx
 import PackingPlantReportsConnected from "./PackingPlantReportsConnected.jsx";
 import CementDispatchUpload from "./CementDispatchUpload.jsx";
 import ClinkerDispatchUpload from "./ClinkerDispatchUpload.jsx";
+import PackingBagUsageUpload from "./PackingBagUsageUpload.jsx";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -334,6 +335,7 @@ function App() {
         <button className={tab==="Reports"?"nav active":"nav"} onClick={()=>setTab("Reports")}><LayoutDashboard size={17}/>Packing Bags Stock Statement</button>
         {["Consumption","Damages","Daily Summary","Monthly Summary","Financial Year Summary"].map(name=><button key={name} className={tab===name?"nav active":"nav"} onClick={()=>setTab(name)}><LayoutDashboard size={17}/>{name}</button>)}
         <button className={tab==="Packing Bags Receipts"?"nav active":"nav"} onClick={()=>setTab("Packing Bags Receipts")}><History size={17}/>Packing Bags Receipts</button>
+        {isAdmin && <button className={tab==="Consumption & Damages Upload"?"nav active":"nav"} onClick={()=>setTab("Consumption & Damages Upload")}><UploadCloud size={17}/>Upload Consumption &amp; Damages</button>
         {canUpload && <button className={tab==="Upload Data"?"nav active":"nav"} onClick={()=>setTab("Upload Data")}><UploadCloud size={17}/>Upload Data</button>}
         <button className={tab==="Upload History"?"nav active":"nav"} onClick={()=>setTab("Upload History")}><History size={17}/>Upload History</button>
       </>}
@@ -411,6 +413,7 @@ function App() {
           </form>}
           <div className="panel"><div className="panel-title"><h3>Receipt register</h3><span className="pill">{receipts.length.toLocaleString("en-IN")} records loaded</span></div><div className="table-scroll"><table><thead><tr><th>Receipt Date</th><th>Bag Type</th><th className="num">Quantity (NOS)</th><th>Receipt / Challan No.</th><th>Remarks</th><th>Recorded At</th>{isAdmin&&<th>Action</th>}</tr></thead><tbody>{receipts.map(r=><tr key={r.id}><td>{r.receipt_date}</td><td>{bagTypes.find(b=>b.id===r.bag_type_id)?.name||"—"}</td><td className="num">{fmt(r.quantity)}</td><td>{r.source_ref||"—"}</td><td>{r.remarks||"—"}</td><td>{new Date(r.created_at).toLocaleString()}</td>{isAdmin&&<td><div className="receipt-actions"><button type="button" className="secondary" disabled={!!receiptDeletingId} onClick={()=>editPackingBagReceipt(r)}>Edit</button><button type="button" className="receipt-delete-btn" disabled={!!receiptDeletingId} onClick={()=>deletePackingBagReceipt(r)}><Trash2 size={14}/>{receiptDeletingId===r.id?"Removing…":"Remove"}</button></div></td>}</tr>)}</tbody></table></div></div>
         </section>}
+        {tab==="Consumption & Damages Upload" && <PackingBagUsageUpload supabase={supabase} bagTypes={bagTypes} isAdmin={isAdmin} onUploaded={loadData}/>}
         {tab==="Upload Data" && <section><div className="section-head"><div><span className="eyebrow">DATA IMPORT</span><h1>Upload Packing Plant Data</h1><p className="muted">Select a workbook to inspect its contents before any import is enabled.</p></div></div>
           <div className="panel"><div className="dropzone"><FileSpreadsheet size={34}/><h3>Select Excel or CSV workbook</h3><p>Supported: .xlsx, .xls, .csv</p><input type="file" accept=".xlsx,.xls,.csv" onChange={e=>e.target.files?.[0]&&parseFile(e.target.files[0])}/></div>
           {file && <p className="fileline"><b>{file.name}</b><button className="text-btn" onClick={()=>{setFile(null);setWorkbook(null);setSheetName("");setHeaders([]);setAllRows([]);setPreview([]);setNotice("");}}>Clear selected file</button></p>}
