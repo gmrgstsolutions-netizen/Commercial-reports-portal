@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
-import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow, Trash2 } from "lucide-react";
+import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow, Trash2, Download, Share2 } from "lucide-react";
 import "./style.css";
 import PackingPlantConnected from "./PackingPlantConnected.jsx";
 import PackingPlantRegistersConnected from "./PackingPlantRegistersConnected.jsx";
@@ -277,6 +277,70 @@ function App() {
   const stockRows = stockStatement?.rows ?? [];
   const totals = stockStatement?.totals ?? {};
 
+  function buildPackingBagWorkbook() {
+    const rows = stockRows.map((r, i) => {
+      const item = bagTypes.find(b => b.code === r.code) || {};
+      return {
+        "Sl. No.": i + 1, "Item Code": item.item_code || "",
+        "Description": item.description || r.name || "", "UOM": item.uom || "NOS",
+        "Opening": r.opening_balance_set ? Number(r.opening_balance || 0) : "Not Set",
+        "Receipts OD": Number(r.receipts_od || 0), "Receipts MTD": Number(r.receipts_mtd || 0),
+        "Receipts YTD": Number(r.receipts_ytd || 0), "Consumption OD": Number(r.consumption_od || 0),
+        "Consumption MTD": Number(r.consumption_mtd || 0), "Consumption YTD": Number(r.consumption_ytd || 0),
+        "Damages OD": Number(r.damages_od || 0), "Damages MTD": Number(r.damages_mtd || 0),
+        "Damages YTD": Number(r.damages_ytd || 0),
+        "Closing": r.opening_balance_set ? Number(r.closing_balance || 0) : "Not Set"
+      };
+    });
+    rows.push({
+      "Sl. No.": "", "Item Code": "", "Description": "GRAND TOTAL", "UOM": "",
+      "Opening": totals.opening_balance == null ? "Not Set" : Number(totals.opening_balance || 0),
+      "Receipts OD": Number(totals.receipts_od || 0), "Receipts MTD": Number(totals.receipts_mtd || 0),
+      "Receipts YTD": Number(totals.receipts_ytd || 0), "Consumption OD": Number(totals.consumption_od || 0),
+      "Consumption MTD": Number(totals.consumption_mtd || 0), "Consumption YTD": Number(totals.consumption_ytd || 0),
+      "Damages OD": Number(totals.damages_od || 0), "Damages MTD": Number(totals.damages_mtd || 0),
+      "Damages YTD": Number(totals.damages_ytd || 0),
+      "Closing": totals.closing_balance == null ? "Not Set" : Number(totals.closing_balance || 0)
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{wch:9},{wch:20},{wch:62},{wch:10},...Array.from({length:11},()=>({wch:17}))];
+    XLSX.utils.sheet_add_aoa(ws, [
+      ["ANDHRA CEMENTS - PACKING BAGS STOCK STATEMENT"],
+      ["Report Date", reportDate],
+      ["All quantities in NOS"]
+    ], {origin:"A1"});
+    ws["!merges"] = [{s:{r:0,c:0},e:{r:0,c:14}},{s:{r:2,c:0},e:{r:2,c:14}}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Statement");
+    return wb;
+  }
+
+  function packingBagExcelFilename() {
+    return "Packing-Bags-Stock-Statement-" + reportDate + ".xlsx";
+  }
+
+  function downloadPackingBagExcel() {
+    if (stockRows.length) XLSX.writeFile(buildPackingBagWorkbook(), packingBagExcelFilename());
+  }
+
+  async function sharePackingBagExcel() {
+    if (!stockRows.length) return;
+    const bytes = XLSX.write(buildPackingBagWorkbook(), {bookType:"xlsx", type:"array"});
+    const excelFile = new File([bytes], packingBagExcelFilename(), {
+      type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    if (navigator.share && navigator.canShare && navigator.canShare({files:[excelFile]})) {
+      try {
+        await navigator.share({title:"Packing Bags Stock Statement", text:"Andhra Cements · " + reportDate, files:[excelFile]});
+      } catch (e) {
+        if (e?.name !== "AbortError") throw e;
+      }
+    } else {
+      downloadPackingBagExcel();
+      window.alert("File sharing is not supported here. The Excel file has been downloaded; you can share it manually.");
+    }
+  }
+
   function applyWorksheet(wb, name) {
     const sheet = wb?.Sheets?.[name];
     if (!sheet) return;
@@ -378,7 +442,7 @@ function App() {
         {tab==="Packing Plant Registers" && <PackingPlantRegistersConnected supabase={supabase} session={session} profile={profile} initialSection="Truck Loading"/>} 
         {error && <div className="alert error">{error}</div>}
         {tab==="Reports" && <section>
-          <div className="section-head"><div><span className="eyebrow">PACKING PLANT · FINANCIAL YEAR REPORT</span><h1>Packing Bags Stock Statement</h1><p className="muted">Opening balance, receipts, consumption, damages and closing balance. Uploaded date-wise consumption and damages take priority; the historical baseline is replaced only after complete daily coverage is uploaded for each bag type from 01-Apr through 18-Nov-2026.</p></div><div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button></div></div>
+          <div className="section-head"><div><span className="eyebrow">PACKING PLANT · FINANCIAL YEAR REPORT</span><h1>Packing Bags Stock Statement</h1><p className="muted">Opening balance, receipts, consumption, damages and closing balance. Uploaded date-wise consumption and damages take priority; the historical baseline is replaced only after complete daily coverage is uploaded for each bag type from 01-Apr through 18-Nov-2026.</p></div><div className="date-tools"><label>Report date<input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label><button className="secondary" onClick={loadData}><RefreshCw size={16}/>Refresh</button><button className="secondary" onClick={downloadPackingBagExcel} disabled={!stockRows.length}><Download size={16}/>Download Excel</button><button className="secondary" onClick={sharePackingBagExcel} disabled={!stockRows.length}><Share2 size={16}/>Share Excel</button></div></div>
           <div className="stats"><div className="stat"><span>Bag categories</span><b>{stockRows.length}</b></div><div className="stat"><span>Consumption YTD</span><b>{fmt(totals.consumption_ytd)} NOS</b></div><div className="stat"><span>Closing balance</span><b>{totals.closing_balance == null ? "Not Set" : `${fmt(totals.closing_balance)} NOS`}</b></div></div>
           <div className="panel"><div className="panel-title"><h3>Bag-wise stock position</h3><span className="pill">{reportDate}</span></div><div className="table-scroll"><table><thead><tr><th>Sl. No.</th><th>Item Code</th><th>Description</th><th>UOM</th><th className="num">Opening</th><th className="num">Receipts OD</th><th className="num">Receipts MTD</th><th className="num">Receipts YTD</th><th className="num">Consumption OD</th><th className="num">Consumption MTD</th><th className="num">Consumption YTD</th><th className="num">Damages OD</th><th className="num">Damages MTD</th><th className="num">Damages YTD</th><th className="num">Closing</th></tr></thead><tbody>
             {stockRows.map((r,i)=><tr key={r.code}><td>{i+1}</td><td>{bagTypes.find(b=>b.code===r.code)?.item_code||"—"}</td><td><b>{bagTypes.find(b=>b.code===r.code)?.description||r.name}</b></td><td>{bagTypes.find(b=>b.code===r.code)?.uom||"NOS"}</td><td className="num">{r.opening_balance_set ? fmt(r.opening_balance) : "Not Set"}</td><td className="num">{fmt(r.receipts_od)}</td><td className="num">{fmt(r.receipts_mtd)}</td><td className="num">{fmt(r.receipts_ytd)}</td><td className="num">{fmt(r.consumption_od)}</td><td className="num">{fmt(r.consumption_mtd)}</td><td className="num">{fmt(r.consumption_ytd)}</td><td className="num">{fmt(r.damages_od)}</td><td className="num">{fmt(r.damages_mtd)}</td><td className="num">{fmt(r.damages_ytd)}</td><td className="num"><b>{r.opening_balance_set ? fmt(r.closing_balance) : "Not Set"}</b></td></tr>)}
