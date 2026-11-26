@@ -44,14 +44,16 @@ export default function PackingPlantReportsConnected({ supabase }) {
   const [error, setError] = useState("");
 
   const selected = REPORTS.find(r => r.key === reportKey) || REPORTS[0];
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : Array.isArray(data?.data?.rows) ? data.data.rows : [];
   const runningRows = Array.isArray(data?.running_rows) ? data.running_rows : [];
   const stoppageGroups = useMemo(() => {
     if (reportKey !== "daily_stoppage") return [];
     const map = new Map();
     for (const row of rows) {
-      const key = [row.business_date, row.asset_name].join("|");
-      if (!map.has(key)) map.set(key, { date: row.business_date, asset: row.asset_name, rows: [] });
+      const date = row.business_date || row.date || row.report_date;
+      const asset = row.asset_name || row.asset || row.packer_name || row.packer_code || "Unassigned";
+      const key = [date, asset].join("|");
+      if (!map.has(key)) map.set(key, { date, asset, rows: [] });
       map.get(key).rows.push(row);
     }
     const order = {"Packer 1":1,"Bulk Loading":2,"Packer 2":3,"Packer 3":4};
@@ -63,14 +65,14 @@ export default function PackingPlantReportsConnected({ supabase }) {
     return preferred;
   }, [rows]);
 
-  async function loadReport() {
+  async function loadReport(requestedReportKey = reportKey) {
     if (!supabase) return;
     if (!fromDate || !toDate) { setError("Please select both From Date and To Date."); return; }
     if (fromDate > toDate) { setError("From Date must not be after To Date."); return; }
     setBusy(true); setError("");
     try {
-      const rpcName = reportKey === "daily_stoppage" ? "get_packing_plant_stoppage_report" : "get_packing_plant_integrated_report";
-      const rpcArgs = reportKey === "daily_stoppage" ? { p_date_from: fromDate, p_date_to: toDate } : { p_report_key: reportKey, p_date_from: fromDate, p_date_to: toDate };
+      const rpcName = requestedReportKey === "daily_stoppage" ? "get_packing_plant_stoppage_report" : "get_packing_plant_integrated_report";
+      const rpcArgs = requestedReportKey === "daily_stoppage" ? { p_date_from: fromDate, p_date_to: toDate } : { p_report_key: requestedReportKey, p_date_from: fromDate, p_date_to: toDate };
       const { data: result, error: rpcError } = await supabase.rpc(rpcName, rpcArgs);
       if (rpcError) throw rpcError;
       setData(result || { rows: [] });
@@ -253,7 +255,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
     </div>
     <div className="panel">
       <div className="panel-title"><h3>Select report</h3><span className="pill">{fromDate} to {toDate}</span></div>
-      <div className="mapping-grid"><label>Report<select value={reportKey} onChange={e => setReportKey(e.target.value)}>{REPORTS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label></div>
+      <div className="mapping-grid"><label>Report<select value={reportKey} onChange={e => { const nextKey = e.target.value; setReportKey(nextKey); setData(null); setError(""); void loadReport(nextKey); }}>{REPORTS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label></div>
       <p className="footnote">{selected.note}</p>
     </div>
     {error && <div className="alert error">{error}</div>}
@@ -273,7 +275,8 @@ export default function PackingPlantReportsConnected({ supabase }) {
                 const details=group.rows.filter(x=>x.stop_number!==null&&x.stop_number!==undefined).sort((a,b)=>Number(a.stop_number)-Number(b.stop_number));
                 const summary=group.rows.find(x=>Number(x.day_stoppage_hours)||Number(x.day_running_hours)||Number(x.day_production_mt))||group.rows[0]||{};
                 const items=details.length?details:[null];
-                const assetLabel=group.asset==="Bulk Loading"?"Bulk":group.asset==="Packer 3"?"PACKER -3":group.asset.toUpperCase().replace("PACKER ","PACKER-");
+                const assetName=String(group.asset || "Unassigned");
+                const assetLabel=assetName==="Bulk Loading"?"Bulk":assetName==="Packer 3"?"PACKER -3":assetName.toUpperCase().replace("PACKER ","PACKER-");
                 return <React.Fragment key={gi}>
                   <tr className="stoppage-asset-title"><td colSpan={11}>{assetLabel}</td></tr>
                   {items.map((item,i)=><tr key={i}>
@@ -284,7 +287,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
                     <td>{item?.start_time??""}</td>
                     <td>{item?.duration_hours==null?"":Number(item.duration_hours).toFixed(2)}</td>
                     <td>{item?.reason??(details.length?"":"No stoppage recorded")}</td>
-                    <td>{item?.stoppage_classification??""}</td>
+                    <td>{item?.category??item?.stoppage_classification??""}</td>
                     {i===0&&<><td rowSpan={items.length}>{Number(summary.day_stoppage_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_running_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td></>}
                   </tr>)}
                 </React.Fragment>;
