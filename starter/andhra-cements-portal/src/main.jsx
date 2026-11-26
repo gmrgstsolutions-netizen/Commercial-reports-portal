@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
+import * as XLSXStyle from "xlsx-js-style";
 import { LogOut, UploadCloud, FileSpreadsheet, LayoutDashboard, History, ShieldCheck, RefreshCw, Code2, GitPullRequest, Workflow, Trash2, Download, Share2 } from "lucide-react";
 import "./style.css";
 import PackingPlantConnected from "./PackingPlantConnected.jsx";
@@ -278,55 +279,81 @@ function App() {
   const totals = stockStatement?.totals ?? {};
 
   function buildPackingBagWorkbook() {
-    const rows = stockRows.map((r, i) => {
+    const headers = ["Sl. No.","Item Code","Description","UOM","Opening","Receipts OD","Receipts MTD","Receipts YTD","Consumption OD","Consumption MTD","Consumption YTD","Damages OD","Damages MTD","Damages YTD","Closing"];
+    const body = stockRows.map((r, i) => {
       const item = bagTypes.find(b => b.code === r.code) || {};
-      return {
-        "Sl. No.": i + 1, "Item Code": item.item_code || "",
-        "Description": item.description || r.name || "", "UOM": item.uom || "NOS",
-        "Opening": r.opening_balance_set ? Number(r.opening_balance || 0) : "Not Set",
-        "Receipts OD": Number(r.receipts_od || 0), "Receipts MTD": Number(r.receipts_mtd || 0),
-        "Receipts YTD": Number(r.receipts_ytd || 0), "Consumption OD": Number(r.consumption_od || 0),
-        "Consumption MTD": Number(r.consumption_mtd || 0), "Consumption YTD": Number(r.consumption_ytd || 0),
-        "Damages OD": Number(r.damages_od || 0), "Damages MTD": Number(r.damages_mtd || 0),
-        "Damages YTD": Number(r.damages_ytd || 0),
-        "Closing": r.opening_balance_set ? Number(r.closing_balance || 0) : "Not Set"
-      };
+      return [
+        i + 1, item.item_code || "", item.description || r.name || "", item.uom || "NOS",
+        r.opening_balance_set ? Number(r.opening_balance || 0) : "Not Set",
+        Number(r.receipts_od || 0), Number(r.receipts_mtd || 0), Number(r.receipts_ytd || 0),
+        Number(r.consumption_od || 0), Number(r.consumption_mtd || 0), Number(r.consumption_ytd || 0),
+        Number(r.damages_od || 0), Number(r.damages_mtd || 0), Number(r.damages_ytd || 0),
+        r.opening_balance_set ? Number(r.closing_balance || 0) : "Not Set"
+      ];
     });
-    rows.push({
-      "Sl. No.": "", "Item Code": "", "Description": "GRAND TOTAL", "UOM": "",
-      "Opening": totals.opening_balance == null ? "Not Set" : Number(totals.opening_balance || 0),
-      "Receipts OD": Number(totals.receipts_od || 0), "Receipts MTD": Number(totals.receipts_mtd || 0),
-      "Receipts YTD": Number(totals.receipts_ytd || 0), "Consumption OD": Number(totals.consumption_od || 0),
-      "Consumption MTD": Number(totals.consumption_mtd || 0), "Consumption YTD": Number(totals.consumption_ytd || 0),
-      "Damages OD": Number(totals.damages_od || 0), "Damages MTD": Number(totals.damages_mtd || 0),
-      "Damages YTD": Number(totals.damages_ytd || 0),
-      "Closing": totals.closing_balance == null ? "Not Set" : Number(totals.closing_balance || 0)
-    });
-    const ws = XLSX.utils.aoa_to_sheet([
-      ["ANDHRA CEMENTS - PACKING BAGS STOCK STATEMENT"],
-      ["Report Date", reportDate],
-      ["All quantities in NOS"],
-      []
+    body.push([
+      "", "", "GRAND TOTAL", "",
+      totals.opening_balance == null ? "Not Set" : Number(totals.opening_balance || 0),
+      Number(totals.receipts_od || 0), Number(totals.receipts_mtd || 0), Number(totals.receipts_ytd || 0),
+      Number(totals.consumption_od || 0), Number(totals.consumption_mtd || 0), Number(totals.consumption_ytd || 0),
+      Number(totals.damages_od || 0), Number(totals.damages_mtd || 0), Number(totals.damages_ytd || 0),
+      totals.closing_balance == null ? "Not Set" : Number(totals.closing_balance || 0)
     ]);
-    XLSX.utils.sheet_add_json(ws, rows, {origin:"A5"});
-    ws["!cols"] = [{wch:9},{wch:20},{wch:62},{wch:10},...Array.from({length:11},()=>({wch:17}))];
+    const aoa = [
+      ["ANDHRA CEMENTS LIMITED · PACKING BAGS STOCK STATEMENT"],
+      ["Report Date", reportDate, "", "Financial Year", (new Date(reportDate + "T00:00:00").getMonth() >= 3 ? new Date(reportDate + "T00:00:00").getFullYear() : new Date(reportDate + "T00:00:00").getFullYear()-1) + "-" + String((new Date(reportDate + "T00:00:00").getMonth() >= 3 ? new Date(reportDate + "T00:00:00").getFullYear()+1 : new Date(reportDate + "T00:00:00").getFullYear())).slice(-2)],
+      ["All quantities are in NOS"],
+      headers,
+      ...body
+    ];
+    const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
     ws["!merges"] = [{s:{r:0,c:0},e:{r:0,c:14}},{s:{r:2,c:0},e:{r:2,c:14}}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Stock Statement");
+    ws["!cols"] = [{wch:9},{wch:20},{wch:62},{wch:10},...Array.from({length:11},()=>({wch:17}))];
+    ws["!freeze"] = {xSplit:4,ySplit:4,topLeftCell:"E5",activePane:"bottomRight",state:"frozen"};
+    ws["!autofilter"] = {ref:"A4:O" + (4 + body.length)};
+    const border = {top:{style:"thin",color:{rgb:"D6DEE8"}},bottom:{style:"thin",color:{rgb:"D6DEE8"}},left:{style:"thin",color:{rgb:"D6DEE8"}},right:{style:"thin",color:{rgb:"D6DEE8"}}};
+    for (let c=0;c<15;c++) {
+      const title = ws[XLSXStyle.utils.encode_cell({r:0,c})];
+      if (title) title.s = {font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"17365D"}},alignment:{vertical:"center",horizontal:"left"}};
+      const meta = ws[XLSXStyle.utils.encode_cell({r:1,c})];
+      if (meta) meta.s = {font:{name:"Aptos",sz:10,bold:c===0||c===3,color:{rgb:"243447"}},alignment:{vertical:"center"}};
+      const note = ws[XLSXStyle.utils.encode_cell({r:2,c})];
+      if (note) note.s = {font:{name:"Aptos",sz:9,italic:true,color:{rgb:"64748B"}},alignment:{vertical:"center"}};
+      const head = ws[XLSXStyle.utils.encode_cell({r:3,c})];
+      if (head) head.s = {font:{name:"Aptos",sz:10,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"24527A"}},alignment:{horizontal:c<4?"center":"right",vertical:"center",wrapText:true},border};
+    }
+    for (let r=4;r<4+body.length;r++) {
+      const isTotal = r===3+body.length;
+      for (let c=0;c<15;c++) {
+        const cell=ws[XLSXStyle.utils.encode_cell({r,c})];
+        if (!cell) continue;
+        cell.s = {
+          font:{name:"Aptos",sz:10,bold:isTotal,color:isTotal?"9C0006":"243447"},
+          fill:{fgColor:{rgb:isTotal?"FFF2CC":(r%2===0?"F3F6FA":"FFFFFF")}},
+          alignment:{vertical:"center",horizontal:c===2?"left":(c<4?"center":"right")},
+          border
+        };
+        if (c>=4 && typeof cell.v==="number") cell.z="#,##0;[Red](#,##0);-";
+      }
+    }
+    ws["A1"].s = {font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"17365D"}},alignment:{vertical:"center",horizontal:"left"}};
+    ws["!rows"] = [{hpt:30},{hpt:22},{hpt:18},{hpt:34},...body.map(()=>({hpt:22}))];
+    const wb = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, "Stock Statement");
+    wb.Props = {Title:"Packing Bags Stock Statement",Subject:"Andhra Cements",Author:"Commercial Operations"};
     return wb;
   }
-
   function packingBagExcelFilename() {
     return "Packing-Bags-Stock-Statement-" + reportDate + ".xlsx";
   }
 
   function downloadPackingBagExcel() {
-    if (stockRows.length) XLSX.writeFile(buildPackingBagWorkbook(), packingBagExcelFilename());
+    if (stockRows.length) XLSXStyle.writeFile(buildPackingBagWorkbook(), packingBagExcelFilename());
   }
 
   async function sharePackingBagExcel() {
     if (!stockRows.length) return;
-    const bytes = XLSX.write(buildPackingBagWorkbook(), {bookType:"xlsx", type:"array"});
+    const bytes = XLSXStyle.write(buildPackingBagWorkbook(), {bookType:"xlsx", type:"array"});
     const excelFile = new File([bytes], packingBagExcelFilename(), {
       type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     });
