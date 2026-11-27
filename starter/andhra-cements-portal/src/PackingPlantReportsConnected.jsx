@@ -77,7 +77,8 @@ function parseHistoricalPercent(value) {
   if(value===null||value===undefined||String(value).trim()==="") return null;
   const raw=String(value).trim();
   const n=Number(raw.replace(/,/g,"").replace(/%/g,""));
-  return Number.isFinite(n)&&n>=0?n:null;
+  if(!Number.isFinite(n)||n<0)return null;
+  return !raw.includes("%")&&typeof value==="number"&&n<=1?n*100:n;
 }
 function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
   const monthNames=["january","february","march","april","may","june","july","august","september","october","november","december"];
