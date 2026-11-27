@@ -50,7 +50,7 @@ function reportNumber(value) {
 }
 
 function parseHistoricalDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return [value.getFullYear(),String(value.getMonth()+1).padStart(2,"0"),String(value.getDate()).padStart(2,"0")].join("-");
   if (typeof value === "number" && value > 20000) {
     const d = XLSX.SSF.parse_date_code(value);
     if (d) return [d.y,String(d.m).padStart(2,"0"),String(d.d).padStart(2,"0")].join("-");
@@ -144,7 +144,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const grid=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
       const assets=["Packer 1","Packer 2","Packer 3","Bulk Loading"];
       const parsed=[];
-      for(let r=3;r<grid.length;r++){
+      for(let r=2;r<grid.length;r++){
         const line=grid[r]||[];
         const business_date=parseHistoricalDate(line[0]);
         if(!business_date) continue;
