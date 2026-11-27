@@ -72,6 +72,85 @@ function parseHistoricalHours(value) {
   const n=Number(String(value).replace(/,/g,"").trim());
   return Number.isFinite(n) && n>=0 ? n : null;
 }
+
+function parseHistoricalPercent(value) {
+  if(value===null||value===undefined||String(value).trim()==="") return null;
+  const raw=String(value).trim();
+  const n=Number(raw.replace(/,/g,"").replace(/%/g,""));
+  return Number.isFinite(n)&&n>=0?n:null;
+}
+function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
+  const monthNames=["january","february","march","april","may","june","july","august","september","october","november","december"];
+  const reasons=[], summaries=[], errors=[];
+  const sheetMonths=[];
+  for(const sheetName of workbook.SheetNames) {
+    const grid=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,raw:true,defval:null});
+    const allText=grid.flat().filter(v=>v!==null&&v!==undefined).map(v=>String(v)).join(" ");
+    const monthMatch=allText.match(/(?:month\s+of\s+)?(January|February|March|April|May|June|July|August|September|October|November|December)\s*[-–, ]\s*(20\d{2})/i)
+      || sheetName.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s*[-–_ ]\s*(20\d{2})/i);
+    if(!monthMatch){errors.push(sheetName+": month and year not found in sheet heading.");continue;}
+    const month=monthNames.indexOf(monthMatch[1].toLowerCase())+1, year=Number(monthMatch[2]);
+    const headerIndex=grid.findIndex(row=>(row||[]).some(v=>/stoppage\s*reason/i.test(String(v||""))));
+    if(headerIndex<0){errors.push(sheetName+": 'Stoppage Reason' column heading not found.");continue;}
+    const header=grid[headerIndex]||[];
+    const dayColumns=[];
+    header.forEach((v,i)=>{const d=Number(String(v??"").trim());if(Number.isInteger(d)&&d>=1&&d<=31)dayColumns.push({day:d,index:i});});
+    if(!dayColumns.length){errors.push(sheetName+": day-number columns not found.");continue;}
+    const findRow=(label)=>grid.find(row=>(row||[]).slice(0,3).some(v=>new RegExp("^\\s*"+label+"\\s*$","i").test(String(v??"").trim())));
+    const stopTotalRow=findRow("Total Stoppage Hrs");
+    const runningRow=findRow("Running Hours");
+    const availableRow=findRow("Total Available Hrs");
+    const utilisationRow=findRow("% of utilisation");
+    const dispatchRow=findRow("Dispatches \\(MT\\)") || findRow("Dispatches");
+    const avgRow=findRow("Avg Packer \\(TPH\\)") || findRow("Avg Packer");
+    const reasonRows=[];
+    for(let r=headerIndex+1;r<grid.length;r++){
+      const row=grid[r]||[];
+      const label=String(row[1]??"").trim();
+      if(!label) continue;
+      if(/^(total\s+stoppage|running\s+hours|total\s+available|%\s*of\s*utilisation|dispatches|avg\s*packer)/i.test(label)) continue;
+      if(/^(sl\s*no|s\.?\s*no|stoppage\s*reason)$/i.test(label)) continue;
+      const dayValues=dayColumns.map(({day,index})=>({day,hours:parseHistoricalHours(row[index])}));
+      if(dayValues.some(x=>x.hours!==null&&x.hours>0)) reasonRows.push({label,dayValues});
+    }
+    const monthDays=new Date(year,month,0).getDate();
+    for(let day=1;day<=monthDays;day++){
+      const business_date=[year,String(month).padStart(2,"0"),String(day).padStart(2,"0")].join("-");
+      let reasonTotal=0;
+      for(const rr of reasonRows){
+        const cell=rr.dayValues.find(x=>x.day===day);
+        if(cell&&cell.hours!==null&&cell.hours>0){
+          reasonTotal+=cell.hours;
+          reasons.push({business_date,asset_name:assetName,stoppage_reason:rr.label,stoppage_hours:Number(cell.hours.toFixed(6)),source_file:fileName,source_sheet:sheetName});
+        }
+      }
+      const getDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index]:null;};
+      const total=parseHistoricalHours(getDay(stopTotalRow));
+      const running=parseHistoricalHours(getDay(runningRow));
+      const available=parseHistoricalHours(getDay(availableRow));
+      const dispatch=parseHistoricalQty(getDay(dispatchRow));
+      const avg=parseHistoricalQty(getDay(avgRow));
+      const utilisation=parseHistoricalPercent(getDay(utilisationRow));
+      if(total!==null||running!==null||available!==null||dispatch!==null||reasonTotal>0){
+        summaries.push({business_date,asset_name:assetName,total_stoppage_hours:Number((total??reasonTotal).toFixed(6)),running_hours:running??0,available_hours:available??24,utilisation_percent:utilisation,dispatch_mt:dispatch,avg_packer_tph:avg,source_file:fileName,source_sheet:sheetName});
+      }
+    }
+    sheetMonths.push({month,year,sheetName});
+  }
+  if(workbook.SheetNames.length!==12) errors.push("Expected 12 monthly worksheets (April to March); found "+workbook.SheetNames.length+".");
+  if(sheetMonths.length===12){
+    const years=new Set(sheetMonths.map(x=>x.year));
+    const monthSet=new Set(sheetMonths.map(x=>x.month));
+    if(years.size!==2 || ![...monthSet].every(m=>[4,5,6,7,8,9,10,11,12,1,2,3].includes(m))) errors.push("Worksheets must cover one complete April-to-March financial year.");
+    const fyStart=sheetMonths.find(x=>x.month===4)?.year;
+    if(!fyStart || !sheetMonths.some(x=>x.month===3&&x.year===fyStart+1)) errors.push("April and following March must belong to the same financial year.");
+  }
+  if(!summaries.length) errors.push("No daily summary values were found. Check the labels and day columns in the worksheets.");
+  const seen=new Set();
+  for(const row of summaries){if(seen.has(row.business_date))errors.push("Duplicate date found across worksheets: "+row.business_date);seen.add(row.business_date);}
+  return {reasons,summaries,errors,sheetMonths};
+}
+
 function parseHistoricalQty(value) {
   if(value===null||value===undefined||String(value).trim()==="") return null;
   const n=Number(String(value).replace(/,/g,"").trim());
@@ -89,6 +168,11 @@ export default function PackingPlantReportsConnected({ supabase }) {
   const [historyPreview, setHistoryPreview] = useState([]);
   const [historyMessage, setHistoryMessage] = useState("");
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [stoppageAsset, setStoppageAsset] = useState("Packer 1");
+  const [stoppageFile, setStoppageFile] = useState(null);
+  const [stoppagePreview, setStoppagePreview] = useState({reasons:[],summaries:[],errors:[],sheetMonths:[]});
+  const [stoppageMessage, setStoppageMessage] = useState("");
+  const [stoppageBusy, setStoppageBusy] = useState(false);
 
   const selected = REPORTS.find(r => r.key === reportKey) || REPORTS[0];
   const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : Array.isArray(data?.data?.rows) ? data.data.rows : [];
@@ -180,6 +264,42 @@ export default function PackingPlantReportsConnected({ supabase }) {
       await loadReport("packing_plant_performance");
     }catch(e){setHistoryMessage(e.message||"Upload failed. Confirm that you have administrator access.");}
     finally{setHistoryBusy(false);}
+  }
+
+
+  async function previewHistoricalStoppageFile(file) {
+    setStoppageFile(file); setStoppagePreview({reasons:[],summaries:[],errors:[],sheetMonths:[]}); setStoppageMessage("");
+    if(!file) return;
+    try{
+      const workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+      const parsed=parseHistoricalStoppageWorkbook(workbook,stoppageAsset,file.name);
+      setStoppagePreview(parsed);
+      setStoppageMessage(parsed.errors.length ? "Preview has validation issues. Correct the workbook before upload." : "Preview ready: "+parsed.summaries.length.toLocaleString("en-IN")+" daily summaries and "+parsed.reasons.length.toLocaleString("en-IN")+" reason entries across "+parsed.sheetMonths.length+" monthly sheets.");
+    }catch(e){setStoppageMessage(e.message||"Unable to read this workbook.");}
+  }
+  async function uploadHistoricalStoppageFile(){
+    const {reasons,summaries,errors}=stoppagePreview;
+    if(errors.length||!summaries.length||!supabase)return;
+    setStoppageBusy(true);setStoppageMessage("");
+    try{
+      const {data:userData,error:userError}=await supabase.auth.getUser();
+      if(userError)throw userError;
+      const userId=userData?.user?.id;
+      if(!userId)throw new Error("Please sign in again before uploading.");
+      const now=new Date().toISOString();
+      const summaryPayload=summaries.map(x=>({...x,uploaded_by:userId,updated_at:now}));
+      const reasonPayload=reasons.map(x=>({...x,uploaded_by:userId,updated_at:now}));
+      const {error:summaryError}=await supabase.from("packing_plant_historical_stoppage_summary_daily").upsert(summaryPayload,{onConflict:"business_date,asset_name"});
+      if(summaryError)throw summaryError;
+      if(reasonPayload.length){
+        const {error:reasonError}=await supabase.from("packing_plant_historical_stoppage_reason_daily").upsert(reasonPayload,{onConflict:"business_date,asset_name,stoppage_reason"});
+        if(reasonError)throw reasonError;
+      }
+      setStoppageMessage("Successfully saved "+summaryPayload.length.toLocaleString("en-IN")+" daily summaries and "+reasonPayload.length.toLocaleString("en-IN")+" reason entries. Existing dates for this packer were updated; other packers and dates were retained.");
+      setStoppagePreview({reasons:[],summaries:[],errors:[],sheetMonths:[]});setStoppageFile(null);
+      await loadReport("daily_stoppage");
+    }catch(e){setStoppageMessage(e.message||"Historical stoppage upload failed. Confirm administrator access.");}
+    finally{setStoppageBusy(false);}
   }
 
   async function loadReport(requestedReportKey = reportKey) {
@@ -446,6 +566,24 @@ export default function PackingPlantReportsConnected({ supabase }) {
       <div className="mapping-grid"><label>Select historical file<input type="file" accept=".xlsx,.xls,.csv" onChange={e=>void previewHistoricalFile(e.target.files?.[0]||null)}/></label></div>
       {historyMessage && <p className={historyPreview.length?"validation-ok":"footnote"}>{historyMessage}</p>}
       {historyPreview.length>0 && <><div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Section","Grade","Production (MT)","Running Hours"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{historyPreview.slice(0,12).map((x,i)=><tr key={i}><td>{reportDate(x.business_date)}</td><td>{x.asset_name}</td><td>{x.grade}</td><td>{reportNumber(x.production_mt)}</td><td>{hourClock(x.running_hours)}</td></tr>)}</tbody></table></div><p className="footnote">Showing first 12 records of {historyPreview.length.toLocaleString("en-IN")}.</p><button className="primary" onClick={uploadHistoricalFile} disabled={historyBusy}>{historyBusy?"Uploading…":"Confirm & Upload Historical Data"}</button></>}
+    </div>}
+
+
+    {reportKey === "daily_stoppage" && <div className="panel history-upload-panel">
+      <div className="panel-title"><h3>Historical Monthly Stoppage Data Upload</h3><span className="pill">Administrator upload</span></div>
+      <p className="footnote">Select the packer and upload its financial-year workbook containing 12 monthly worksheets (April to March). Daily reason durations and summary figures are imported; stop and restart times are not created.</p>
+      <div className="mapping-grid">
+        <label>Packer<select value={stoppageAsset} onChange={e=>{setStoppageAsset(e.target.value);setStoppageFile(null);setStoppagePreview({reasons:[],summaries:[],errors:[],sheetMonths:[]});setStoppageMessage("");}}><option>Packer 1</option><option>Packer 2</option><option>Packer 3</option></select></label>
+        <label>Select financial-year workbook<input type="file" accept=".xlsx,.xls" onChange={e=>void previewHistoricalStoppageFile(e.target.files?.[0]||null)}/></label>
+      </div>
+      {stoppageMessage&&<p className={stoppagePreview.errors.length?"footnote":"validation-ok"}>{stoppageMessage}</p>}
+      {stoppagePreview.errors.length>0&&<ul className="footnote">{stoppagePreview.errors.map((x,i)=><li key={i}>{x}</li>)}</ul>}
+      {stoppagePreview.summaries.length>0&&stoppagePreview.errors.length===0&&<>
+        <p className="footnote">Worksheets: {stoppagePreview.sheetMonths.map(x=>x.sheetName).join(", ")}</p>
+        <div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Packer","Stoppage Hrs","Running Hrs","Available Hrs","Utilisation %","Dispatch MT","Reason Entries"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{stoppagePreview.summaries.slice(0,12).map((x,i)=><tr key={i}><td>{reportDate(x.business_date)}</td><td>{x.asset_name}</td><td>{hourClock(x.total_stoppage_hours)}</td><td>{hourClock(x.running_hours)}</td><td>{hourClock(x.available_hours)}</td><td>{x.utilisation_percent??"—"}</td><td>{x.dispatch_mt??"—"}</td><td>{stoppagePreview.reasons.filter(r=>r.business_date===x.business_date).length}</td></tr>)}</tbody></table></div>
+        <p className="footnote">Showing first 12 of {stoppagePreview.summaries.length.toLocaleString("en-IN")} daily summaries; {stoppagePreview.reasons.length.toLocaleString("en-IN")} reason entries detected.</p>
+        <button className="primary" onClick={uploadHistoricalStoppageFile} disabled={stoppageBusy}>{stoppageBusy?"Uploading…":"Confirm & Upload Historical Stoppage Data"}</button>
+      </>}
     </div>}
 
     {busy && <div className="panel"><p>Loading report from Supabase…</p></div>}
