@@ -102,7 +102,7 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
     for(let r=Math.max(0,headerIndex-2);r<=Math.min(grid.length-1,headerIndex+2);r++){
       (grid[r]||[]).forEach((v,i)=>{
         const raw=String(v??"").trim();
-        if(!/^\\d{1,2}$/.test(raw))return;
+        if(!/^\d{1,2}$/.test(raw))return;
         const d=Number(raw);
         if(d>=1&&d<=31&&!dayMap.has(d))dayMap.set(d,i);
       });
