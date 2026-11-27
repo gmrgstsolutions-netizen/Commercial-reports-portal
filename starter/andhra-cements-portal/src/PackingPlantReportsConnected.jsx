@@ -101,8 +101,8 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
     // daily values elsewhere in the worksheet can look like day numbers.
     const monthDays=new Date(year,month,0).getDate();
     const headerCells=grid[headerIndex]||[];
-    const slNoCol=headerCells.findIndex(v=>/^sl\\s*no\\.?$|^s\\.?\\s*no\\.?$/i.test(String(v??"").trim()));
-    const reasonCol=headerCells.findIndex(v=>/^stoppage\\s+reason$/i.test(String(v??"").trim()));
+    const slNoCol=headerCells.findIndex(v=>/^sl\s*no\.?$|^s\.?\s*no\.?$/i.test(String(v??"").trim()));
+    const reasonCol=headerCells.findIndex(v=>/^stoppage\s+reason$/i.test(String(v??"").trim()));
     if(slNoCol<0||reasonCol<0||reasonCol<=slNoCol){
       errors.push(sheetName+": could not identify the serial-number and reason columns in the table header.");
       continue;
@@ -113,7 +113,7 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       (grid[rowIndex]||[]).forEach((v,i)=>{
         if(i<=reasonCol)return;
         const raw=String(v??"").trim();
-        if(!/^\\d{1,2}$/.test(raw))return;
+        if(!/^\d{1,2}$/.test(raw))return;
         const day=Number(raw);
         if(day>=1&&day<=monthDays&&!entries.some(x=>x.day===day))entries.push({day,index:i});
       });
@@ -127,14 +127,14 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       errors.push(sheetName+": could not identify the day-number header beside the stoppage table (found "+dayColumns.length+" of "+monthDays+" days).");
       continue;
     }
-    const summaryLabel=/^(total\\s+stoppage|running\\s+hours|total\\s+available|%\\s*of\\s*utilisation|dispatches|avg\\s*packer)/i;
+    const summaryLabel=/^(total\s+stoppage|running\s+hours|total\s+available|%\s*of\s*utilisation|dispatches|avg\s*packer)/i;
     const findLabelRow=(pattern)=>grid.find(row=>(row||[]).slice(0,Math.max(6,reasonCol+1)).some(v=>pattern.test(String(v??"").trim())));
-    const stopTotalRow=findLabelRow(/^total\\s+stoppage\\s+hrs$/i);
-    const runningRow=findLabelRow(/^running\\s+hours$/i);
-    const availableRow=findLabelRow(/^total\\s+available\\s+hrs$/i);
-    const utilisationRow=findLabelRow(/^%\\s*of\\s*utilisation$/i);
-    const dispatchRow=findLabelRow(/^dispatches(?:\\s*\\(mt\\))?$/i);
-    const avgRow=findLabelRow(/^avg\\s*packer(?:\\s*\\(tph\\))?$/i);
+    const stopTotalRow=findLabelRow(/^total\s+stoppage\s+hrs$/i);
+    const runningRow=findLabelRow(/^running\s+hours$/i);
+    const availableRow=findLabelRow(/^total\s+available\s+hrs$/i);
+    const utilisationRow=findLabelRow(/^%\s*of\s*utilisation$/i);
+    const dispatchRow=findLabelRow(/^dispatches(?:\s*\(mt\))?$/i);
+    const avgRow=findLabelRow(/^avg\s*packer(?:\s*\(tph\))?$/i);
     const reasonRows=[];
     for(let r=headerIndex+1;r<grid.length;r++){
       if(r===bestDayHeader.rowIndex)continue;
@@ -142,7 +142,7 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       const label=String(row[reasonCol]??"").trim();
       if(!label)continue;
       if(summaryLabel.test(label))break;
-      if(/^(sl\\s*no|s\\.?\\s*no|stoppage\\s*reason)$/i.test(label))continue;
+      if(/^(sl\s*no|s\.?\s*no|stoppage\s*reason)$/i.test(label))continue;
       const dayValues=dayColumns.map(({day,index})=>({day,hours:parseHistoricalHours(row[index])}));
       if(dayValues.some(x=>x.hours!==null&&x.hours>0))reasonRows.push({label,dayValues});
     }
