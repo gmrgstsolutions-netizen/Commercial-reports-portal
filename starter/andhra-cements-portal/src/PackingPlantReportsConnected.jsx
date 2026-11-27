@@ -7,6 +7,7 @@ import logoBase64 from "./andhra-cements-logo.txt?raw";
 const REPORTS = [
   { key: "shift_production", label: "Daily Packing Production", note: "Dispatch-derived production and adjusted running hours by business date and packing unit." },
   { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Dispatch-derived production with full-day running and stoppage intervals adjusted to the agreed day-wise TPH targets; original stoppage reasons and Planned/Unplanned classification are retained." },
+  { key: "packing_plant_performance", label: "Packing Plant Performance Report", note: "Day-wise OPC53/PPC performance, packer and bulk quantities, running/stoppage hours, TPH and cumulative dispatch." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Dispatch-derived production, running hours and truck-loading quantity." },
   { key: "production_dispatch", label: "Dispatch-derived Production", note: "Daily OPC/PPC bagged and bulk production quantities are sourced directly from dispatch data." },
   { key: "day_dispatches", label: "Day Dispatches", note: "Invoice-wise daily cement and clinker dispatches sourced only from uploaded dispatch records. No truck, bag-counting, weighbridge or packslip reconciliation is applied." },
@@ -35,6 +36,19 @@ function display(value, key) {
   return String(value);
 }
 
+function hourClock(value) {
+  const minutes = Math.max(0, Math.round((Number(value) || 0) * 60));
+  return Math.floor(minutes / 60) + ":" + String(minutes % 60).padStart(2, "0");
+}
+function reportDate(value) {
+  if (!value) return "";
+  const [y,m,d] = String(value).slice(0,10).split("-");
+  return [d,m,y].join("-");
+}
+function reportNumber(value) {
+  return Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function PackingPlantReportsConnected({ supabase }) {
   const [reportKey, setReportKey] = useState("shift_production");
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString("en-CA"));
@@ -60,6 +74,32 @@ export default function PackingPlantReportsConnected({ supabase }) {
     return [...map.values()].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
   }, [reportKey, rows]);
 
+  const performanceDays = useMemo(() => {
+    if (reportKey !== "packing_plant_performance") return [];
+    const grouped = new Map();
+    for (const row of rows) {
+      const date = row.business_date;
+      if (!grouped.has(date)) grouped.set(date, {});
+      grouped.get(date)[row.grade] = row;
+    }
+    return [...grouped.entries()].sort((a,b) => String(a[0]).localeCompare(String(b[0]))).map(([date, grades]) => ({ date, grades }));
+  }, [reportKey, rows]);
+
+  const performanceStopGroups = useMemo(() => {
+    if (reportKey !== "packing_plant_performance") return [];
+    const map = new Map();
+    for (const row of (Array.isArray(data?.stoppage_rows) ? data.stoppage_rows : [])) {
+      if (row.stop_number === null || row.stop_number === undefined) continue;
+      const date = row.business_date;
+      const asset = row.asset_name || "Unassigned";
+      const key = date + "|" + asset;
+      if (!map.has(key)) map.set(key, { date, asset, rows: [] });
+      map.get(key).rows.push(row);
+    }
+    const order = { "Packer 1":1, "Packer 2":2, "Packer 3":3, "Bulk Loading":4 };
+    return [...map.values()].sort((a,b) => String(a.date).localeCompare(String(b.date)) || (order[a.asset]||9)-(order[b.asset]||9));
+  }, [reportKey, data]);
+
   const columns = useMemo(() => {
     const preferred = Object.keys(rows[0] || {});
     return preferred;
@@ -71,11 +111,21 @@ export default function PackingPlantReportsConnected({ supabase }) {
     if (fromDate > toDate) { setError("From Date must not be after To Date."); return; }
     setBusy(true); setError("");
     try {
-      const rpcName = requestedReportKey === "daily_stoppage" ? "get_packing_plant_stoppage_report" : "get_packing_plant_integrated_report";
-      const rpcArgs = requestedReportKey === "daily_stoppage" ? { p_date_from: fromDate, p_date_to: toDate } : { p_report_key: requestedReportKey, p_date_from: fromDate, p_date_to: toDate };
-      const { data: result, error: rpcError } = await supabase.rpc(rpcName, rpcArgs);
-      if (rpcError) throw rpcError;
-      setData(result || { rows: [] });
+      if (requestedReportKey === "packing_plant_performance") {
+        const [performance, stoppage] = await Promise.all([
+          supabase.rpc("get_packing_plant_performance_report", { p_date_from: fromDate, p_date_to: toDate }),
+          supabase.rpc("get_packing_plant_stoppage_report", { p_date_from: fromDate, p_date_to: toDate })
+        ]);
+        if (performance.error) throw performance.error;
+        if (stoppage.error) throw stoppage.error;
+        setData({ ...(performance.data || { rows: [] }), stoppage_rows: stoppage.data?.rows || [] });
+      } else {
+        const rpcName = requestedReportKey === "daily_stoppage" ? "get_packing_plant_stoppage_report" : "get_packing_plant_integrated_report";
+        const rpcArgs = requestedReportKey === "daily_stoppage" ? { p_date_from: fromDate, p_date_to: toDate } : { p_report_key: requestedReportKey, p_date_from: fromDate, p_date_to: toDate };
+        const { data: result, error: rpcError } = await supabase.rpc(rpcName, rpcArgs);
+        if (rpcError) throw rpcError;
+        setData(result || { rows: [] });
+      }
     } catch (e) {
       setData(null);
       setError(e.message || "Unable to load this Packing Plant report.");
@@ -227,6 +277,60 @@ export default function PackingPlantReportsConnected({ supabase }) {
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
       return;
     }
+    if (reportKey === "packing_plant_performance") {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Andhra Cements Limited";
+      workbook.subject = "Packing Plant Performance Report";
+      workbook.title = "Andhra Cements Limited - Packing Plant Performance Report";
+      const ws = workbook.addWorksheet("Performance", { pageSetup:{paperSize:9,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.2,right:0.2,top:0.25,bottom:0.25,header:0.1,footer:0.1}} });
+      ws.views=[{showGridLines:false}];
+      ws.columns=[{width:7},{width:12},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:13},{width:14},{width:14},{width:14}];
+      ws.mergeCells("A2:A5"); ws.mergeCells("B2:Q2"); ws.mergeCells("B3:Q3"); ws.mergeCells("B4:Q4"); ws.mergeCells("B5:Q5");
+      ws.getCell("B2").value="ANDHRA CEMENTS LIMITED";
+      ws.getCell("B3").value="DACHEPALLI";
+      ws.getCell("B4").value="PACKING PLANT PERFORMANCE REPORT";
+      ws.getCell("B5").value=fromDate===toDate?"Date : "+reportDate(fromDate):"Period : "+reportDate(fromDate)+" to "+reportDate(toDate);
+      [2,3,4,5].forEach(r=>{ws.getRow(r).height=17;const cell=ws.getCell("B"+r);cell.font={name:"Calibri",size:r===5?9:12,bold:true,color:{argb:r===4?"FFC00000":"FF000000"}};cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFD2DCEB"}};cell.alignment={horizontal:r===5?"right":"center",vertical:"middle"};cell.border={top:{style:"thin"},bottom:{style:r===5?"medium":"thin"},left:{style:"thin"},right:{style:"thin"}};});
+      const logoId=workbook.addImage({base64:"data:image/png;base64,"+logoBase64.trim(),extension:"png"});
+      ws.addImage(logoId,{tl:{col:0,row:1},ext:{width:82,height:56}});
+      ws.mergeCells("A7:A8"); ws.mergeCells("B7:B8");
+      [["C","E","PACKER-1"],["F","H","PACKER-2"],["I","K","PACKER-3"],["L","N","BULK"],["O","Q","TOTAL DISPATCH"]].forEach(([a,b,label])=>{ws.mergeCells(a+"7:"+b+"7");ws.getCell(a+"7").value=label;});
+      ws.getCell("A7").value="S.No."; ws.getCell("B7").value="Grade";
+      const subheads=["Qty","Running Hours","Stoppage Hours","Qty","Running Hours","Stoppage Hours","Qty","Running Hours","Stoppage Hours","Qty","Running Hours","Stoppage Hours","On Date","MTD","YTD"];
+      subheads.forEach((v,i)=>ws.getCell(8,i+3).value=v);
+      for(let r=7;r<=8;r++) for(let col=1;col<=17;col++){const x=ws.getCell(r,col);x.font={name:"Calibri",size:9,bold:true};x.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFDCE6F2"}};x.alignment={horizontal:"center",vertical:"middle",wrapText:true};x.border={top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"}};}
+      ws.getRow(7).height=20; ws.getRow(8).height=30;
+      let rr=9;
+      const numericFields=["p1_qty","p1_running_hours","p1_stoppage_hours","p2_qty","p2_running_hours","p2_stoppage_hours","p3_qty","p3_running_hours","p3_stoppage_hours","bulk_qty","bulk_running_hours","bulk_stoppage_hours","on_date","mtd","ytd"];
+      for(const day of performanceDays){
+        ws.mergeCells(rr,1,rr,17); ws.getCell(rr,1).value="Date : "+reportDate(day.date); ws.getCell(rr,1).font={name:"Calibri",size:10,bold:true};ws.getCell(rr,1).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFD2DCEB"}};ws.getCell(rr,1).alignment={horizontal:"left"};rr++;
+        ["OPC53","PPC","Total"].forEach((grade,index)=>{
+          const item=day.grades[grade]||{};
+          ws.getCell(rr,1).value=index+1; ws.getCell(rr,2).value=grade;
+          numericFields.forEach((field,i)=>{const cell=ws.getCell(rr,i+3);cell.value=Number(item[field]||0);cell.numFmt=i%3===1||i%3===2&&i<12?"[h]:mm":"#,##0.00";});
+          for(let col=1;col<=17;col++){const cell=ws.getCell(rr,col);cell.font={name:"Calibri",size:9,bold:grade==="Total"};cell.alignment={horizontal:col<=2?"left":"right",vertical:"middle"};cell.border={top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"}};if(grade==="Total")cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFFFF2CC"}};}
+          rr++;
+        });
+        const total=day.grades.Total||{};
+        ws.getCell(rr,2).value="TPH";
+        [total.p1_tph,total.p2_tph,total.p3_tph,total.bulk_tph].forEach((v,i)=>ws.getCell(rr,3+i*3).value=Number(v||0));
+        const totalTph=Number(total.total_dispatch_qty||0)/(Number(total.p1_running_hours||0)+Number(total.p2_running_hours||0)+Number(total.p3_running_hours||0)+Number(total.bulk_running_hours||0)||1);
+        ws.getCell(rr,15).value=totalTph;
+        for(let col=1;col<=17;col++){const cell=ws.getCell(rr,col);cell.font={name:"Calibri",size:9,bold:true,color:{argb:"FFC00000"}};cell.border={top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"}};}
+        rr++;
+      }
+      ws.pageSetup.printArea="A2:Q"+(rr-1); ws.pageSetup.horizontalCentered=true;
+      const stopWs=workbook.addWorksheet("Stoppage Reasons",{pageSetup:{paperSize:9,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0}});
+      stopWs.views=[{showGridLines:false}]; stopWs.columns=[{width:16},{width:17},{width:12},{width:12},{width:12},{width:42}];
+      stopWs.mergeCells("A1:F1");stopWs.getCell("A1").value="PACKING PLANT PERFORMANCE REPORT - STOPPAGE REASONS";stopWs.getCell("A1").font={bold:true,size:13,color:{argb:"FFC00000"}};stopWs.getCell("A1").alignment={horizontal:"center"};
+      ["Asset","Category","From","To","Total","Reason"].forEach((v,i)=>{const cell=stopWs.getCell(3,i+1);cell.value=v;cell.font={bold:true};cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFDCE6F2"}};cell.border={top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"}};});
+      let sr=4;
+      for(const group of performanceStopGroups){
+        stopWs.mergeCells(sr,1,sr,6);stopWs.getCell(sr,1).value=reportDate(group.date)+" · "+group.asset;stopWs.getCell(sr,1).font={bold:true};sr++;
+        for(const item of group.rows){[group.asset,item.category||item.stoppage_classification||"",item.stop_time||"",item.start_time||"",Number(item.duration_hours||0)/24,item.reason||""].forEach((v,i)=>stopWs.getCell(sr,i+1).value=v);stopWs.getCell(sr,5).numFmt="[h]:mm";for(let col=1;col<=6;col++)stopWs.getCell(sr,col).border={top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"}};sr++;}
+      }
+      const buffer=await workbook.xlsx.writeBuffer();const blob=new Blob([buffer],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="Packing_Plant_Performance_Report_"+fromDate+"_to_"+toDate+".xlsx";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);return;
+    }
     const wb = XLSX.utils.book_new();
     const totalKeys=columns.filter(k=>NUMERIC.has(k)&&k!=="active_packers"&&k!=="stop_number");
     const totalRow=Object.fromEntries(columns.map((key,i)=>[key,i===0?"Grand Total":totalKeys.includes(key)?rows.reduce((sum,row)=>sum+(Number(row[key])||0),0):""]));
@@ -295,6 +399,20 @@ export default function PackingPlantReportsConnected({ supabase }) {
               <tr className="stoppage-grand-total"><td colSpan={8}></td><td colSpan={2}>TOTAL PRODUCTION (MT)</td><td>{stoppageGroups.reduce((n,g)=>n+Number((g.rows.find(x=>Number(x.day_production_mt))||g.rows[0]||{}).day_production_mt||0),0).toFixed(2)}</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>: reportKey === "packing_plant_performance" ? <div className="performance-report cr-panel">
+        <div className="cr-report-title"><strong>ANDHRA CEMENTS LIMITED</strong><b>PACKING PLANT PERFORMANCE REPORT</b><small>{fromDate===toDate?"Date : "+reportDate(fromDate):"Period : "+reportDate(fromDate)+" to "+reportDate(toDate)}</small></div>
+        <div className="cr-scroll"><table className="cr-table performance-table">
+          <thead><tr><th rowSpan={2}>S.No.</th><th rowSpan={2}>Grade</th><th colSpan={3}>Packer-1</th><th colSpan={3}>Packer-2</th><th colSpan={3}>Packer-3</th><th colSpan={3}>Bulk</th><th colSpan={3}>Total Dispatch</th></tr>
+          <tr>{["Qty","Running Hours","Stoppage Hours","Qty","Running Hours","Stoppage Hours","Qty","Running Hours","Stoppage Hours","Qty","Running Hours","Stoppage Hours","On Date","MTD","YTD"].map((x,i)=><th key={i}>{x}</th>)}</tr></thead>
+          <tbody>{performanceDays.map(day=>{const total=day.grades.Total||{};const grades=["OPC53","PPC","Total"];return <React.Fragment key={day.date}>
+            <tr className="performance-date"><td colSpan={17}>Date : {reportDate(day.date)}</td></tr>
+            {grades.map((grade,index)=>{const item=day.grades[grade]||{};const vals=[item.p1_qty,item.p1_running_hours,item.p1_stoppage_hours,item.p2_qty,item.p2_running_hours,item.p2_stoppage_hours,item.p3_qty,item.p3_running_hours,item.p3_stoppage_hours,item.bulk_qty,item.bulk_running_hours,item.bulk_stoppage_hours,item.on_date,item.mtd,item.ytd];return <tr key={grade} className={grade==="Total"?"performance-total":""}><td>{index+1}</td><td>{grade}</td>{vals.map((v,i)=><td key={i} className="num">{i%3===1||i%3===2&&i<12?hourClock(v):reportNumber(v)}</td>)}</tr>;})}
+            <tr className="performance-tph"><td></td><td>TPH</td><td className="num">{reportNumber(total.p1_tph)}</td><td></td><td></td><td className="num">{reportNumber(total.p2_tph)}</td><td></td><td></td><td className="num">{reportNumber(total.p3_tph)}</td><td></td><td></td><td className="num">{reportNumber(total.bulk_tph)}</td><td className="num">{reportNumber(Number(total.total_dispatch_qty||0)/(Number(total.p1_running_hours||0)+Number(total.p2_running_hours||0)+Number(total.p3_running_hours||0)+Number(total.bulk_running_hours||0)||1))}</td><td></td><td></td><td></td><td></td></tr>
+          </React.Fragment>;})}</tbody>
+        </table></div>
+        <div className="cr-section"><h4>STOPPAGE REASONS</h4>
+          {performanceStopGroups.length?performanceStopGroups.map((group,i)=><div key={i}><h5>{reportDate(group.date)} · {group.asset}</h5><div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Category","From","To","Total","Reason"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{group.rows.map((item,j)=><tr key={j}><td>{item.category||item.stoppage_classification||"—"}</td><td>{item.stop_time||"—"}</td><td>{item.start_time||"—"}</td><td>{hourClock(item.duration_hours)}</td><td>{item.reason||"—"}</td></tr>)}</tbody></table></div></div>):<p className="muted">No recorded stoppage reasons for the selected dates.</p>}
         </div>
       </div>: <div className="table-scroll"><table><thead><tr>{columns.map(k => <th key={k}>{LABELS[k] || k.replace(/_/g, " ")}</th>)}</tr></thead><tbody>
         {rows.map((row, i) => <tr key={i}>{columns.map(k => <td key={k} className={NUMERIC.has(k) ? "num" : ""}>{display(row[k], k)}</td>)}</tr>)}
