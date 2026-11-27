@@ -162,13 +162,8 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       // starts one column earlier. The trailing monthly total is not a day.
       const getSummaryDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index-1]:null;};
       const total=parseHistoricalHours(getSummaryDay(stopTotalRow));
-      const running=parseHistoricalHours(getSummaryDay(runningRow));
-      const available=parseHistoricalHours(getSummaryDay(availableRow));
-      const dispatch=parseHistoricalQty(getSummaryDay(dispatchRow));
-      const avg=parseHistoricalQty(getSummaryDay(avgRow));
-      const utilisation=parseHistoricalPercent(getSummaryDay(utilisationRow));
-      if(total!==null||running!==null||available!==null||dispatch!==null||reasonTotal>0){
-        summaries.push({business_date,asset_name:assetName,total_stoppage_hours:Number((total??reasonTotal).toFixed(6)),running_hours:running??0,available_hours:available??24,utilisation_percent:utilisation,dispatch_mt:dispatch,avg_packer_tph:avg,source_file:fileName,source_sheet:sheetName});
+      if(total!==null||reasonTotal>0){
+        summaries.push({business_date,asset_name:assetName,total_stoppage_hours:Number((total??reasonTotal).toFixed(6)),source_file:fileName,source_sheet:sheetName});
       }
     }
     sheetMonths.push({month,year,sheetName});
@@ -338,8 +333,20 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const reasonPayload=reasons.map(x=>({...x,uploaded_by:userId,updated_at:now}));
       const firstDate=summaries.reduce((v,x)=>x.business_date<v?x.business_date:v,summaries[0].business_date);
       const lastDate=summaries.reduce((v,x)=>x.business_date>v?x.business_date:v,summaries[0].business_date);
-      const {error:summaryError}=await supabase.from("packing_plant_historical_stoppage_summary_daily").upsert(summaryPayload,{onConflict:"business_date,asset_name"});
-      if(summaryError)throw summaryError;
+      // Update only stoppage-related fields. Running hours, available hours,
+      // utilisation, production and TPH are maintained by separate uploads/rules.
+      for(let i=0;i<summaryPayload.length;i+=10){
+        const batch=summaryPayload.slice(i,i+10);
+        await Promise.all(batch.map(async x=>{
+          const payload={total_stoppage_hours:x.total_stoppage_hours,source_file:x.source_file,source_sheet:x.source_sheet,uploaded_by:x.uploaded_by,updated_at:x.updated_at};
+          const {data:updated,error:updateError}=await supabase.from("packing_plant_historical_stoppage_summary_daily").update(payload).eq("business_date",x.business_date).eq("asset_name",x.asset_name).select("business_date");
+          if(updateError)throw updateError;
+          if(!updated?.length){
+            const {error:insertError}=await supabase.from("packing_plant_historical_stoppage_summary_daily").insert({...x});
+            if(insertError)throw insertError;
+          }
+        }));
+      }
       // Replace the historical reason rows for this packer/date range so a
       // corrected workbook cannot leave stale entries from an earlier parse.
       const {error:clearReasonError}=await supabase.from("packing_plant_historical_stoppage_reason_daily").delete().eq("asset_name",stoppageAsset).gte("business_date",firstDate).lte("business_date",lastDate);
@@ -624,7 +631,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
 
     {reportKey === "daily_stoppage" && <div className="panel history-upload-panel">
       <div className="panel-title"><h3>Historical Monthly Stoppage Data Upload</h3><span className="pill">Administrator upload</span></div>
-      <p className="footnote">Select the packer and upload its financial-year workbook. A completed FY should contain April to March; for the current FY, available completed months (April onward) are accepted. Daily reason durations and summary figures are imported; stop and restart times are not created.</p>
+      <p className="footnote">Select the packer and upload its financial-year workbook. Only daily stoppage hours and reason-wise stoppage durations are imported. Existing running hours are preserved; production allocation and TPH continue to follow the agreed calculation rules. Stop and restart times are not created.</p>
       <div className="mapping-grid">
         <label>Packer<select value={stoppageAsset} onChange={e=>{setStoppageAsset(e.target.value);setStoppageFile(null);setStoppagePreview({reasons:[],summaries:[],errors:[],sheetMonths:[]});setStoppageMessage("");}}><option>Packer 1</option><option>Packer 2</option><option>Packer 3</option></select></label>
         <label>Select financial-year workbook<input type="file" accept=".xlsx,.xls" onChange={e=>void previewHistoricalStoppageFile(e.target.files?.[0]||null)}/></label>
@@ -633,8 +640,8 @@ export default function PackingPlantReportsConnected({ supabase }) {
       {stoppagePreview.errors.length>0&&<ul className="footnote">{stoppagePreview.errors.map((x,i)=><li key={i}>{x}</li>)}</ul>}
       {stoppagePreview.summaries.length>0&&stoppagePreview.errors.length===0&&<>
         <p className="footnote">Worksheets: {stoppagePreview.sheetMonths.map(x=>x.sheetName).join(", ")}</p>
-        <div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Packer","Stoppage Hrs","Running Hrs","Available Hrs","Utilisation %","Dispatch MT","Reason Entries"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{stoppagePreview.summaries.slice(0,12).map((x,i)=><tr key={i}><td>{reportDate(x.business_date)}</td><td>{x.asset_name}</td><td>{hourClock(x.total_stoppage_hours)}</td><td>{hourClock(x.running_hours)}</td><td>{hourClock(x.available_hours)}</td><td>{x.utilisation_percent??"—"}</td><td>{x.dispatch_mt??"—"}</td><td>{stoppagePreview.reasons.filter(r=>r.business_date===x.business_date).length}</td></tr>)}</tbody></table></div>
-        <p className="footnote">Showing first 12 of {stoppagePreview.summaries.length.toLocaleString("en-IN")} daily summaries; {stoppagePreview.reasons.length.toLocaleString("en-IN")} reason entries detected.</p>
+        <div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Packer","Stoppage Hrs","Reason Entries"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{stoppagePreview.summaries.slice(0,12).map((x,i)=><tr key={i}><td>{reportDate(x.business_date)}</td><td>{x.asset_name}</td><td>{hourClock(x.total_stoppage_hours)}</td><td>{stoppagePreview.reasons.filter(r=>r.business_date===x.business_date).length}</td></tr>)}</tbody></table></div>
+        <p className="footnote">Showing first 12 of {stoppagePreview.summaries.length.toLocaleString("en-IN")} dates with stoppage data; {stoppagePreview.reasons.length.toLocaleString("en-IN")} reason entries detected. Running hours, production and TPH are not changed by this upload.</p>
         <button className="primary" onClick={uploadHistoricalStoppageFile} disabled={stoppageBusy}>{stoppageBusy?"Uploading…":"Confirm & Upload Historical Stoppage Data"}</button>
       </>}
     </div>}
