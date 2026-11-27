@@ -221,9 +221,9 @@ export default function PackingPlantReportsConnected({ supabase }) {
       if(dayError) throw dayError;
       const dayRows=Array.isArray(dayReport?.rows)?dayReport.rows:[];
       const summary=dayRows.find(x=>x.business_date===reasonDate&&x.asset_name===reasonAsset);
-      const available=Number(summary?.day_stoppage_hours??24);
+      const available=summary?.day_stoppage_hours==null?null:Number(summary.day_stoppage_hours);
       const alreadyEntered=Number(summary?.reason_hours_entered??0);
-      if(alreadyEntered+hours>available+0.01) {
+      if(available!==null && alreadyEntered+hours>available+0.01) {
         throw new Error("Reason hours ("+(alreadyEntered+hours).toFixed(2)+") cannot exceed the calculated daily stoppage of "+available.toFixed(2)+" hours for "+reasonAsset+".");
       }
       const {error:saveError}=await supabase.from("pp_daily_stoppage_reasons").insert({
@@ -569,7 +569,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
                     <td>{item?.duration_hours==null?"":Number(item.duration_hours).toFixed(2)}</td>
                     <td>{item?.reason??(details.length?"":"No stoppage recorded")}</td>
                     <td>{item?.category??item?.stoppage_classification??""}</td>
-                    {i===0&&<><td rowSpan={items.length}>{Number(summary.day_stoppage_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_running_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.reason_balance_hours||0).toFixed(2)}</td></>}
+                    {i===0&&<><td rowSpan={items.length}>{summary.day_stoppage_hours==null?"—":Number(summary.day_stoppage_hours).toFixed(2)}</td><td rowSpan={items.length}>{summary.day_running_hours==null?"—":Number(summary.day_running_hours).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td><td rowSpan={items.length}>{summary.reason_balance_hours==null?"—":Number(summary.reason_balance_hours).toFixed(2)}</td></>}
                   </tr>)}
                 </React.Fragment>;
               })}
