@@ -83,7 +83,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   try{
    const {data,error}=await supabase.from("pp_bag_counting_sessions").select("*").gte("business_date",packerFrom).lte("business_date",packerTo).order("loading_start");
    if(error)throw error;
-   const sessions=(data||[]).filter(x=>Number(x.target_bags)>0&&!(x.grade==="OPC"&&x.bag_type==="LAMINATED")&&(packerShift==="ALL"||x.shift_code===packerShift)&&(packerFilter==="ALL"||x.packer_code===packerFilter)).map(x=>({...x,packerLabel:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3"}));
+   const sessions=(data||[]).filter(x=>(packerShift==="ALL"||x.shift_code===packerShift)&&(packerFilter==="ALL"||x.packer_code===packerFilter)).map(x=>({...x,packerLabel:x.packer_code==="P1"?"Packer 1":x.packer_code==="P2"?"Packer 2":"Packer 3"}));
    setPackerReportRows(sessions);setPackerBulkRows([]);setPackerUnmatchedDispatch([]);setPackerUnmatchedPackslips([]);setPackerReportLoaded(true);
    setNotice("Packer summary generated from "+sessions.length+" uploaded bag-counting sessions. No dispatch, invoice, packslip or weighbridge matching is used.");
   }catch(err){setNotice("Unable to generate Packer Report: "+err.message);}finally{setPackerReportBusy(false);}
@@ -92,13 +92,15 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   const trucks=new Set(list.map(x=>String(x.vehicle_number||"").trim().toUpperCase()).filter(Boolean));
   const out={trucks:trucks.size,opcYellow:0,opcWhite:0,ppcYellow:0,ppcWhite:0,ppcLaminated:0,quantityMt:0};
   list.forEach(x=>{
-   const mt=Number(x.target_bags||0)/20;
+   const grade=String(x.grade||"").toUpperCase(),bagType=String(x.bag_type||"").toUpperCase(),bags=Number(x.target_bags);
+   if(!Number.isFinite(bags)||bags<=0||!["OPC","PPC"].includes(grade)||!["YELLOW","WHITE","LAMINATED"].includes(bagType)||(grade==="OPC"&&bagType==="LAMINATED"))return;
+   const mt=bags/20;
    out.quantityMt+=mt;
-   if(x.grade==="OPC"&&x.bag_type==="YELLOW")out.opcYellow+=mt;
-   if(x.grade==="OPC"&&x.bag_type==="WHITE")out.opcWhite+=mt;
-   if(x.grade==="PPC"&&x.bag_type==="YELLOW")out.ppcYellow+=mt;
-   if(x.grade==="PPC"&&x.bag_type==="WHITE")out.ppcWhite+=mt;
-   if(x.grade==="PPC"&&x.bag_type==="LAMINATED")out.ppcLaminated+=mt;
+   if(grade==="OPC"&&bagType==="YELLOW")out.opcYellow+=mt;
+   if(grade==="OPC"&&bagType==="WHITE")out.opcWhite+=mt;
+   if(grade==="PPC"&&bagType==="YELLOW")out.ppcYellow+=mt;
+   if(grade==="PPC"&&bagType==="WHITE")out.ppcWhite+=mt;
+   if(grade==="PPC"&&bagType==="LAMINATED")out.ppcLaminated+=mt;
   });
   return out;
  };
