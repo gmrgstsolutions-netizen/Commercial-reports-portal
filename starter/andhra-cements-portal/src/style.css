@@ -690,3 +690,22 @@ body{
  .cr-report-title b { font-size:13px; }
  .cr-table th,.cr-table td { padding:6px; }
 }
+
+
+/* Day-wise Packing Plant Performance Report */
+.performance-report { background:#fff; border:1px solid #a6a6a6; }
+.performance-report .cr-report-title { position:relative; margin:0 0 10px; padding:10px; background:#d2dceb; border:1px solid #a6a6a6; }
+.performance-report .cr-report-title strong { color:#000; font-size:13px; }
+.performance-report .cr-report-title b { color:#c00000; font-size:14px; }
+.performance-report .cr-report-title small { color:#000; font-size:10px; }
+.performance-report .performance-table { min-width:1500px; width:100%; }
+.performance-report .performance-table th { padding:6px 5px; background:#dce6f2; color:#000; border:1px solid #7f8fa3; text-align:center; white-space:normal; }
+.performance-report .performance-table td { padding:6px 5px; border:1px solid #a6a6a6; color:#000; }
+.performance-report .performance-table td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.performance-report .performance-table .performance-date td { background:#d2dceb; font-weight:800; text-align:left; }
+.performance-report .performance-table .performance-total td { background:#fff2cc; color:#c00000; font-weight:800; }
+.performance-report .performance-table .performance-tph td { background:#f5f7fa; color:#c00000; font-weight:800; }
+.performance-report .cr-section { margin-top:14px; }
+.performance-report .cr-section h4 { background:#d2dceb; color:#000; border-color:#a6a6a6; }
+.performance-report .cr-section h5 { margin:9px 0 4px; color:#173653; }
+.performance-report .cr-small { min-width:850px; }
