@@ -1,0 +1,56 @@
+name: Deploy Packing Plant Preview to GitHub Pages
+# Re-trigger after GitHub Pages source was configured to GitHub Actions.
+
+on:
+  push:
+    branches:
+      - source-import/starter-portal-2026-11-21
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages-preview
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: starter/andhra-cements-portal
+        run: npm install --no-audit --no-fund
+      - name: Build portal
+        working-directory: starter/andhra-cements-portal
+        env:
+          VITE_SUPABASE_URL: https://arimgpcocnbuumwfxkmp.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_5vhp__aUNrAC4vVmZ-IKRA_XWp_Fm8H
+        run: npm run build
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload preview artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: starter/andhra-cements-portal/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4

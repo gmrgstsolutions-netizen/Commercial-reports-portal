@@ -6,13 +6,13 @@ Private source repository for the Andhra Cements Commercial Reports portal.
 
 This repository has been created as the dedicated home for the portal source. The existing live ChatGPT Site is a separate deployment and is not automatically connected to this repository. Do not assume a commit here changes the live portal.
 
-The initial source package previously prepared in conversation is a development starter, not a verified export of the live site's complete source. Before deployment, reconcile the existing Dispatch Reports and Weighbridge Reports behavior against the live portal and migrate their approved source into this repository.
+The original live portal source is unavailable, so this repository is being used to build a separate replacement independently. The starter package is only the initial application shell; Dispatch and Weighbridge must be rebuilt from documented requirements and verified Supabase contracts. The existing live portal remains separate and untouched throughout development.
 
 ## Required modules
 
-- Dispatch Reports — preserve existing behavior.
-- Weighbridge Reports — preserve existing behavior.
-- Packing Plant Reports — add as the third report type.
+- Dispatch Reports — independently rebuild the existing upload, report, filter, and export workflows, then verify output parity against the live portal.
+- Weighbridge Reports — independently rebuild the existing upload, Datewise, Pending, and Card Issue workflows, then verify output parity against the live portal.
+- Packing Plant Reports — complete the eight agreed screens as the third module.
 - Admin-only Portal Maintenance — source access, version history, test/build and publish links.
 
 ## Security rules
@@ -25,4 +25,4 @@ The initial source package previously prepared in conversation is a development 
 
 ## Deployment status
 
-No production deployment is configured by this initial commit. The current live portal remains unchanged until a verified source migration and deployment are completed.
+No public hosting or production deployment is configured yet. The new portal must first be completed and tested in a separate staging deployment. The current live portal and production Supabase data remain unchanged until explicit approval to switch.

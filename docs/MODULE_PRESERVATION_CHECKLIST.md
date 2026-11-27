@@ -1,6 +1,6 @@
 # Module Preservation Checklist
 
-Before every release, verify the following against the current live portal baseline.
+Before every release, compare the independently rebuilt modules against the current live portal baseline. The live portal remains untouched during this process.
 
 ## Dispatch Reports
 
@@ -25,4 +25,4 @@ Before every release, verify the following against the current live portal basel
 
 ## Release gate
 
-Do not deploy if any existing Dispatch or Weighbridge regression test fails, if role enforcement is only client-side, or if production secrets appear in the built assets or repository.
+Do not deploy unless Dispatch and Weighbridge parity tests pass, role enforcement is verified server-side, production secrets are absent from built assets and repository, and the staging deployment has been approved.

@@ -2,7 +2,7 @@
 
 ## Non-negotiable compatibility rule
 
-The production portal already contains Dispatch Reports and Weighbridge Reports. They must remain available with their current behavior, data, access rules, uploads, filters, and exports. Packing Plant Reports is an additive third module. Do not replace the current portal with a new starter application.
+The current production portal is a separate system and must remain available and unchanged while this replacement is developed. Its editable source is unavailable. Therefore, rebuild Dispatch Reports and Weighbridge Reports independently from documented requirements and verified backend contracts, and add Packing Plant Reports as the third module. Do not overwrite, redirect, or modify the current live portal during development.
 
 ## Navigation
 
@@ -11,10 +11,18 @@ The report-type selector must contain exactly these three modules:
 2. Weighbridge Reports
 3. Packing Plant Reports
 
-Existing Dispatch and Weighbridge flows must be regression-tested before any production release.
+Rebuilt Dispatch and Weighbridge flows must be compared against the current live portal using identical files, dates, filters, roles, and expected totals before any release.
 
 ## Packing Plant screens
 
+Packing Plant is a complete operational module, not limited to packing-bag inventory. Its initial scope includes:
+
+- Packer-wise PPC/OPC production in MT by shift
+- Multiple product-specific running intervals per packer, with automatic running-hour calculation
+- Automatically derived stoppage intervals, category/reason capture, and stoppage analysis
+- Combined PPC + OPC capacity utilisation against each packer's rated TPH
+- Shift-level staff details and individual truck loading register
+- Manpower master, shift-wise attendance, and public-holiday/festival Extra Duty eligibility
 - Packing Bags Stock Statement
 - Packing Bags Receipts
 - Packing Plant Consumption
@@ -24,6 +32,8 @@ Existing Dispatch and Weighbridge flows must be regression-tested before any pro
 - Bag-wise Financial Year Summary
 - Upload Data
 - Upload History
+
+See [PACKING_PLANT_OPERATIONS_REQUIREMENTS.md](PACKING_PLANT_OPERATIONS_REQUIREMENTS.md) for the detailed user-confirmed operating rules, calculations, attendance conditions, and open confirmations.
 
 ## Access model
 
@@ -78,7 +88,7 @@ These controls must invoke real authenticated services. Never place GitHub token
 ## Production release gate
 
 No deployment until:
-- verified current production source is imported or faithfully reconstructed;
+- Dispatch and Weighbridge workflows are faithfully reconstructed and pass output-parity tests against the live portal;
 - Dispatch and Weighbridge regression tests pass;
 - Packing Plant staging import and calculation tests pass;
 - backend role policies are reviewed;
