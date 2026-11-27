@@ -141,7 +141,7 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
   if(sheetMonths.length===12){
     const years=new Set(sheetMonths.map(x=>x.year));
     const monthSet=new Set(sheetMonths.map(x=>x.month));
-    if(years.size!==2 || ![...monthSet].every(m=>[4,5,6,7,8,9,10,11,12,1,2,3].includes(m))) errors.push("Worksheets must cover one complete April-to-March financial year.");
+    if(years.size!==2 || monthSet.size!==12 || ![4,5,6,7,8,9,10,11,12,1,2,3].every(m=>monthSet.has(m))) errors.push("Worksheets must cover each month from April through March exactly once.");
     const fyStart=sheetMonths.find(x=>x.month===4)?.year;
     if(!fyStart || !sheetMonths.some(x=>x.month===3&&x.year===fyStart+1)) errors.push("April and following March must belong to the same financial year.");
   }
