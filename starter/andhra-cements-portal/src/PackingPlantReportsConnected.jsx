@@ -145,7 +145,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         if (value===null || value===undefined || value==="") return null;
         if (typeof value==="number") return value>=0 && value<1 ? value : null;
         if (value instanceof Date) return (value.getHours()*3600+value.getMinutes()*60+value.getSeconds())/86400;
-        const m=String(value).match(/(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);
+        const m=String(value).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
         return m ? (Number(m[1])*3600+Number(m[2])*60+Number(m[3]||0))/86400 : null;
       };
       const thinBorder = { top:{style:"thin"},bottom:{style:"thin"},left:{style:"thin"},right:{style:"thin"} };
