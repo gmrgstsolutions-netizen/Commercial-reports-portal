@@ -261,7 +261,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       if (requestedReportKey === "packing_plant_performance") {
         const [performance, stoppage] = await Promise.all([
           supabase.rpc("get_packing_plant_performance_report", { p_date_from: fromDate, p_date_to: toDate }),
-          supabase.rpc("get_packing_plant_stoppage_report", { p_date_from: fromDate, p_date_to: toDate })
+          supabase.rpc("get_packing_plant_daily_stoppage_report", { p_date_from: fromDate, p_date_to: toDate })
         ]);
         if (performance.error) throw performance.error;
         if (stoppage.error) throw stoppage.error;
