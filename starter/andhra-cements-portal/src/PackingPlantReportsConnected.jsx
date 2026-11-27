@@ -167,7 +167,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         items.forEach((item,index) => {
           const row = ws.getRow(rowNo);
           row.getCell(2).value = item ? (item.stop_number??index+1) : "";
-          row.getCell(3).value = group.date ? new Date(group.date+"T00:00:00") : "";
+          row.getCell(3).value = group.date ? new Date(group.date+"T00:00:00Z") : "";
           row.getCell(4).value = details.length;
           row.getCell(5).value = item ? timeValue(item.stop_time) : "";
           row.getCell(6).value = item ? timeValue(item.start_time) : "";
