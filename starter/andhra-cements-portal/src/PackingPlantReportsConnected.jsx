@@ -6,7 +6,7 @@ import logoBase64 from "./andhra-cements-logo.txt?raw";
 
 const REPORTS = [
   { key: "shift_production", label: "Daily Packing Production", note: "Dispatch-derived production and adjusted running hours by business date and packing unit." },
-  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Dispatch-derived production with full-day running and stoppage intervals adjusted to the agreed day-wise TPH targets; original stoppage reasons and Planned/Unplanned classification are retained." },
+  { key: "daily_stoppage", label: "Daily Stoppage Report", note: "Daily stoppage hours are calculated as 24 hours less recorded running hours. Enter reason-wise stoppage durations by date and packing section; no historical stop or restart times are assumed." },
   { key: "packing_plant_performance", label: "Packing Plant Performance Report", note: "Day-wise OPC53/PPC performance, packer and bulk quantities, running/stoppage hours, TPH and cumulative dispatch." },
   { key: "daily_summary", label: "Daily Packing Summary", note: "Dispatch-derived production, running hours and truck-loading quantity." },
   { key: "production_dispatch", label: "Dispatch-derived Production", note: "Daily OPC/PPC bagged and bulk production quantities are sourced directly from dispatch data." },
@@ -217,6 +217,14 @@ export default function PackingPlantReportsConnected({ supabase }) {
   const [stoppagePreview, setStoppagePreview] = useState({reasons:[],summaries:[],errors:[],sheetMonths:[]});
   const [stoppageMessage, setStoppageMessage] = useState("");
   const [stoppageBusy, setStoppageBusy] = useState(false);
+  const [reasonDate, setReasonDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [reasonAsset, setReasonAsset] = useState("Packer 1");
+  const [reasonCategory, setReasonCategory] = useState("Mechanical");
+  const [reasonText, setReasonText] = useState("");
+  const [reasonHours, setReasonHours] = useState("");
+  const [dailyReasons, setDailyReasons] = useState([]);
+  const [reasonBusy, setReasonBusy] = useState(false);
+  const [reasonMessage, setReasonMessage] = useState("");
 
   const selected = REPORTS.find(r => r.key === reportKey) || REPORTS[0];
   const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : Array.isArray(data?.data?.rows) ? data.data.rows : [];
@@ -364,6 +372,66 @@ export default function PackingPlantReportsConnected({ supabase }) {
     finally{setStoppageBusy(false);}
   }
 
+  async function loadDailyStoppageReasons(dateFrom=fromDate,dateTo=toDate) {
+    if(!supabase) return;
+    const {data:items,error:loadError}=await supabase.from("pp_daily_stoppage_reasons")
+      .select("id,business_date,asset_name,category,reason,stoppage_hours,created_at")
+      .gte("business_date",dateFrom).lte("business_date",dateTo)
+      .order("business_date",{ascending:true}).order("asset_name",{ascending:true}).order("created_at",{ascending:true});
+    if(loadError) throw loadError;
+    setDailyReasons(items||[]);
+  }
+
+  async function saveDailyStoppageReason(event) {
+    event?.preventDefault?.();
+    const hours=Number(reasonHours);
+    if(!reasonDate||!reasonText.trim()||!Number.isFinite(hours)||hours<=0||hours>24) {
+      setReasonMessage("Enter the date, reason and stoppage hours (greater than 0 and not more than 24).");
+      return;
+    }
+    setReasonBusy(true);setReasonMessage("");
+    try {
+      const {data:userData,error:userError}=await supabase.auth.getUser();
+      if(userError) throw userError;
+      const userId=userData?.user?.id;
+      if(!userId) throw new Error("Please sign in again before saving.");
+      const {data:dayReport,error:dayError}=await supabase.rpc("get_packing_plant_daily_stoppage_report",{
+        p_date_from:reasonDate,p_date_to:reasonDate
+      });
+      if(dayError) throw dayError;
+      const dayRows=Array.isArray(dayReport?.rows)?dayReport.rows:[];
+      const summary=dayRows.find(x=>x.business_date===reasonDate&&x.asset_name===reasonAsset);
+      const available=Number(summary?.day_stoppage_hours??24);
+      const alreadyEntered=Number(summary?.reason_hours_entered??0);
+      if(alreadyEntered+hours>available+0.01) {
+        throw new Error("Reason hours ("+(alreadyEntered+hours).toFixed(2)+") cannot exceed the calculated daily stoppage of "+available.toFixed(2)+" hours for "+reasonAsset+".");
+      }
+      const {error:saveError}=await supabase.from("pp_daily_stoppage_reasons").insert({
+        business_date:reasonDate,asset_name:reasonAsset,category:reasonCategory,
+        reason:reasonText.trim(),stoppage_hours:hours,created_by:userId
+      });
+      if(saveError) throw saveError;
+      setReasonText("");setReasonHours("");
+      await loadDailyStoppageReasons(fromDate,toDate);
+      if(reportKey==="daily_stoppage") await loadReport("daily_stoppage");
+      setReasonMessage("Daily stoppage reason saved.");
+    } catch(e) { setReasonMessage(e.message||"Unable to save the stoppage reason."); }
+    finally { setReasonBusy(false); }
+  }
+
+  async function deleteDailyStoppageReason(id) {
+    if(!id||!window.confirm("Delete this daily stoppage reason entry?")) return;
+    setReasonBusy(true);setReasonMessage("");
+    try {
+      const {error:deleteError}=await supabase.from("pp_daily_stoppage_reasons").delete().eq("id",id);
+      if(deleteError) throw deleteError;
+      await loadDailyStoppageReasons(fromDate,toDate);
+      if(reportKey==="daily_stoppage") await loadReport("daily_stoppage");
+      setReasonMessage("Stoppage reason entry deleted.");
+    } catch(e) { setReasonMessage(e.message||"Unable to delete the stoppage reason."); }
+    finally { setReasonBusy(false); }
+  }
+
   async function loadReport(requestedReportKey = reportKey) {
     if (!supabase) return;
     if (!fromDate || !toDate) { setError("Please select both From Date and To Date."); return; }
@@ -379,11 +447,12 @@ export default function PackingPlantReportsConnected({ supabase }) {
         if (stoppage.error) throw stoppage.error;
         setData({ ...(performance.data || { rows: [] }), stoppage_rows: stoppage.data?.rows || [] });
       } else {
-        const rpcName = requestedReportKey === "daily_stoppage" ? "get_packing_plant_stoppage_report" : "get_packing_plant_integrated_report";
+        const rpcName = requestedReportKey === "daily_stoppage" ? "get_packing_plant_daily_stoppage_report" : "get_packing_plant_integrated_report";
         const rpcArgs = requestedReportKey === "daily_stoppage" ? { p_date_from: fromDate, p_date_to: toDate } : { p_report_key: requestedReportKey, p_date_from: fromDate, p_date_to: toDate };
         const { data: result, error: rpcError } = await supabase.rpc(rpcName, rpcArgs);
         if (rpcError) throw rpcError;
         setData(result || { rows: [] });
+        if(requestedReportKey==="daily_stoppage") await loadDailyStoppageReasons(fromDate,toDate);
       }
     } catch (e) {
       setData(null);
@@ -433,7 +502,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
       ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 82, height: 56 } });
 
-      const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
+      const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)","Reason Balance Hrs"];
       const merges = ["B","C","D","E","F","G","H","I","J","K","L"];
       merges.forEach(col => ws.mergeCells(col+"6:"+col+"8"));
       headers.forEach((label,i) => {
@@ -632,22 +701,25 @@ export default function PackingPlantReportsConnected({ supabase }) {
 
 
     {reportKey === "daily_stoppage" && <div className="panel history-upload-panel">
-      <div className="panel-title"><h3>Historical Monthly Stoppage Data Upload</h3><span className="pill">Administrator upload</span></div>
-      <p className="footnote">Select the packer and upload its financial-year workbook. Only daily stoppage hours and reason-wise stoppage durations are imported. Existing running hours are preserved; production allocation and TPH continue to follow the agreed calculation rules. Stop and restart times are not created.</p>
-      <div className="mapping-grid">
-        <label>Packer<select value={stoppageAsset} onChange={e=>{setStoppageAsset(e.target.value);setStoppageFile(null);setStoppagePreview({reasons:[],summaries:[],errors:[],sheetMonths:[]});setStoppageMessage("");}}><option>Packer 1</option><option>Packer 2</option><option>Packer 3</option></select></label>
-        <label>Select financial-year workbook<input type="file" accept=".xlsx,.xls" onChange={e=>void previewHistoricalStoppageFile(e.target.files?.[0]||null)}/></label>
+      <div className="panel-title"><h3>Daily Stoppage Reason Entry</h3><span className="pill">Day-wise entry</span></div>
+      <p className="footnote">Daily stoppage hours are calculated automatically as 24:00 less the recorded running hours. Enter the reason-wise breakdown below. Do not enter start or restart times.</p>
+      <form onSubmit={saveDailyStoppageReason}>
+        <div className="mapping-grid">
+          <label>Business Date<input type="date" value={reasonDate} onChange={e=>setReasonDate(e.target.value)} required /></label>
+          <label>Packing Section<select value={reasonAsset} onChange={e=>setReasonAsset(e.target.value)}><option>Packer 1</option><option>Packer 2</option><option>Packer 3</option><option>Bulk Loading</option></select></label>
+          <label>Category<select value={reasonCategory} onChange={e=>setReasonCategory(e.target.value)}><option>Mechanical</option><option>Electrical</option><option>Instrumentation</option><option>Operational</option><option>Planned</option></select></label>
+          <label>Stoppage Hours<input type="number" min="0.01" max="24" step="0.01" value={reasonHours} onChange={e=>setReasonHours(e.target.value)} placeholder="e.g. 2.50" required /></label>
+          <label style={{gridColumn:"1 / -1"}}>Reason<textarea value={reasonText} onChange={e=>setReasonText(e.target.value)} rows={2} placeholder="Enter the reason for stoppage" required /></label>
+        </div>
+        <button className="primary" type="submit" disabled={reasonBusy}>{reasonBusy?"Saving…":"Save Daily Stoppage Reason"}</button>
+      </form>
+      {reasonMessage&&<p className="footnote">{reasonMessage}</p>}
+      <div className="cr-section"><h4>Saved Day-wise Stoppage Reasons</h4>
+        {dailyReasons.length?<div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Section","Category","Reason","Hours","Action"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>
+          {dailyReasons.map(item=><tr key={item.id}><td>{reportDate(item.business_date)}</td><td>{item.asset_name}</td><td>{item.category}</td><td>{item.reason}</td><td>{reportNumber(item.stoppage_hours)}</td><td><button type="button" className="secondary" onClick={()=>void deleteDailyStoppageReason(item.id)} disabled={reasonBusy}>Delete</button></td></tr>)}
+        </tbody></table></div>:<p className="muted">No day-wise reason entries found for the selected report dates.</p>}
       </div>
-      {stoppageMessage&&<p className={stoppagePreview.errors.length?"footnote":"validation-ok"}>{stoppageMessage}</p>}
-      {stoppagePreview.errors.length>0&&<ul className="footnote">{stoppagePreview.errors.map((x,i)=><li key={i}>{x}</li>)}</ul>}
-      {stoppagePreview.summaries.length>0&&stoppagePreview.errors.length===0&&<>
-        <p className="footnote">Worksheets: {stoppagePreview.sheetMonths.map(x=>x.sheetName).join(", ")}</p>
-        <div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Packer","Stoppage Hrs","Reason Entries"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{stoppagePreview.summaries.slice(0,12).map((x,i)=><tr key={i}><td>{reportDate(x.business_date)}</td><td>{x.asset_name}</td><td>{hourClock(x.total_stoppage_hours)}</td><td>{stoppagePreview.reasons.filter(r=>r.business_date===x.business_date).length}</td></tr>)}</tbody></table></div>
-        <p className="footnote">Showing first 12 of {stoppagePreview.summaries.length.toLocaleString("en-IN")} dates with stoppage data; {stoppagePreview.reasons.length.toLocaleString("en-IN")} reason entries detected. Running hours, production and TPH are not changed by this upload.</p>
-        <button className="primary" onClick={uploadHistoricalStoppageFile} disabled={stoppageBusy}>{stoppageBusy?"Uploading…":"Confirm & Upload Historical Stoppage Data"}</button>
-      </>}
     </div>}
-
     {busy && <div className="panel"><p>Loading report from Supabase…</p></div>}
     {!busy && data && <div className="panel">
       <div className="panel-title"><h3>{selected.label}</h3><span className="pill">{rows.length.toLocaleString("en-IN")} rows · MT where applicable</span></div>
@@ -667,7 +739,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
                 const assetName=String(group.asset || "Unassigned");
                 const assetLabel=assetName==="Bulk Loading"?"Bulk":assetName==="Packer 3"?"PACKER -3":assetName.toUpperCase().replace("PACKER ","PACKER-");
                 return <React.Fragment key={gi}>
-                  <tr className="stoppage-asset-title"><td colSpan={11}>{assetLabel}</td></tr>
+                  <tr className="stoppage-asset-title"><td colSpan={12}>{assetLabel}</td></tr>
                   {items.map((item,i)=><tr key={i}>
                     <td>{item?.stop_number??""}</td>
                     <td>{new Date(group.date+"T00:00:00").toLocaleDateString("en-GB")}</td>
@@ -677,11 +749,11 @@ export default function PackingPlantReportsConnected({ supabase }) {
                     <td>{item?.duration_hours==null?"":Number(item.duration_hours).toFixed(2)}</td>
                     <td>{item?.reason??(details.length?"":"No stoppage recorded")}</td>
                     <td>{item?.category??item?.stoppage_classification??""}</td>
-                    {i===0&&<><td rowSpan={items.length}>{Number(summary.day_stoppage_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_running_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td></>}
+                    {i===0&&<><td rowSpan={items.length}>{Number(summary.day_stoppage_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_running_hours||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.reason_balance_hours||0).toFixed(2)}</td></>}
                   </tr>)}
                 </React.Fragment>;
               })}
-              <tr className="stoppage-grand-total"><td colSpan={8}></td><td colSpan={2}>TOTAL PRODUCTION (MT)</td><td>{stoppageGroups.reduce((n,g)=>n+Number((g.rows.find(x=>Number(x.day_production_mt))||g.rows[0]||{}).day_production_mt||0),0).toFixed(2)}</td></tr>
+              <tr className="stoppage-grand-total"><td colSpan={9}></td><td colSpan={2}>TOTAL PRODUCTION (MT)</td><td>{stoppageGroups.reduce((n,g)=>n+Number((g.rows.find(x=>Number(x.day_production_mt))||g.rows[0]||{}).day_production_mt||0),0).toFixed(2)}</td></tr>
             </tbody>
           </table>
         </div>
