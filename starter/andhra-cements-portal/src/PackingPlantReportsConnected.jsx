@@ -91,12 +91,24 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       || sheetName.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s*[-–_ ]\s*(20\d{2})/i);
     if(!monthMatch){errors.push(sheetName+": month and year not found in sheet heading.");continue;}
     const month=monthNames.indexOf(monthMatch[1].toLowerCase())+1, year=Number(monthMatch[2]);
-    const headerIndex=grid.findIndex(row=>(row||[]).some(v=>/stoppage\s*reason/i.test(String(v||""))));
-    if(headerIndex<0){errors.push(sheetName+": 'Stoppage Reason' column heading not found.");continue;}
-    const header=grid[headerIndex]||[];
-    const dayColumns=[];
-    header.forEach((v,i)=>{const d=Number(String(v??"").trim());if(Number.isInteger(d)&&d>=1&&d<=31)dayColumns.push({day:d,index:i});});
-    if(!dayColumns.length){errors.push(sheetName+": day-number columns not found.");continue;}
+    // Match the actual table header, not the worksheet title ("Stoppage Reasons for the month...").
+    const headerIndex=grid.findIndex(row=>{
+      const cells=(row||[]).map(v=>String(v??"").trim().toLowerCase());
+      return cells.some(v=>/^stoppage\s+reason$/.test(v)) && cells.some(v=>/^sl\s*no\.?$|^s\.?\s*no\.?$/.test(v));
+    });
+    if(headerIndex<0){errors.push(sheetName+": table header row containing both 'Sl No.' and 'Stoppage Reason' was not found.");continue;}
+    // Some workbooks place day numbers in a merged/multi-row header immediately above or below the labels.
+    const dayMap=new Map();
+    for(let r=Math.max(0,headerIndex-2);r<=Math.min(grid.length-1,headerIndex+2);r++){
+      (grid[r]||[]).forEach((v,i)=>{
+        const raw=String(v??"").trim();
+        if(!/^\\d{1,2}$/.test(raw))return;
+        const d=Number(raw);
+        if(d>=1&&d<=31&&!dayMap.has(d))dayMap.set(d,i);
+      });
+    }
+    const dayColumns=[...dayMap.entries()].map(([day,index])=>({day,index})).sort((a,b)=>a.day-b.day);
+    if(!dayColumns.length){errors.push(sheetName+": day-number columns not found in the header rows around 'Sl No.' and 'Stoppage Reason'.");continue;}
     const findRow=(label)=>grid.find(row=>(row||[]).slice(0,3).some(v=>new RegExp("^\\s*"+label+"\\s*$","i").test(String(v??"").trim())));
     const stopTotalRow=findRow("Total Stoppage Hrs");
     const runningRow=findRow("Running Hours");
