@@ -64,7 +64,7 @@ function parseHistoricalDate(value) {
 function parseHistoricalHours(value) {
   if (value===null || value===undefined || value==="") return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.getUTCHours()+value.getUTCMinutes()/60+value.getUTCSeconds()/3600;
+    // Excel time-only cells are returned as Date objects. Read local clock components: UTC shifts these 1899-based values by the historical India offset (e.g. 02:00 becomes 20:39).\n    return value.getHours()+value.getMinutes()/60+value.getSeconds()/3600;
   }
   if (typeof value==="number") return value>=0 && value<1 ? value*24 : value;
   const m=String(value).trim().match(/^(\d{1,3}):(\d{1,2})(?::(\d{1,2}))?$/);
