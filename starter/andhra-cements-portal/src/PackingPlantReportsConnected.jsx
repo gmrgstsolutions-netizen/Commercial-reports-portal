@@ -567,7 +567,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
                     <td>{item?.stop_time??""}</td>
                     <td>{item?.start_time??""}</td>
                     <td>{item?.duration_hours==null?"":Number(item.duration_hours).toFixed(2)}</td>
-                    <td>{item?.reason??(details.length?"":"No stoppage recorded")}</td>
+                    <td>{item?.reason??(Number(summary.day_stoppage_hours)>0?"Reason not yet entered":"No stoppage recorded")}</td>
                     <td>{item?.category??item?.stoppage_classification??""}</td>
                     {i===0&&<><td rowSpan={items.length}>{summary.day_stoppage_hours==null?"—":Number(summary.day_stoppage_hours).toFixed(2)}</td><td rowSpan={items.length}>{summary.day_running_hours==null?"—":Number(summary.day_running_hours).toFixed(2)}</td><td rowSpan={items.length}>{Number(summary.day_production_mt||0).toFixed(2)}</td><td rowSpan={items.length}>{summary.reason_balance_hours==null?"—":Number(summary.reason_balance_hours).toFixed(2)}</td></>}
                   </tr>)}
