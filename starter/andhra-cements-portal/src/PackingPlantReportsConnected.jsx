@@ -522,7 +522,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
 
     {reportKey === "daily_stoppage" && <div className="panel history-upload-panel">
       <div className="panel-title"><h3>Daily Stoppage Reason Entry</h3><span className="pill">Day-wise entry</span></div>
-      <p className="footnote">Daily stoppage hours are calculated automatically as 24:00 less the recorded running hours. Enter the reason-wise breakdown below. Do not enter start or restart times.</p>
+      <p className="footnote">Daily stoppage hours are calculated as 24:00 less recorded running hours. If OPC and PPC both have running-hour rows for the same section and date, the higher value is used as the section's daily running time rather than adding the two rows (which can exceed 24 hours). If no running-hour record exists, daily running/stoppage totals remain blank. Enter reason-wise durations below; do not enter start or restart times.</p>
       <form onSubmit={saveDailyStoppageReason}>
         <div className="mapping-grid">
           <label>Business Date<input type="date" value={reasonDate} onChange={e=>setReasonDate(e.target.value)} required /></label>
