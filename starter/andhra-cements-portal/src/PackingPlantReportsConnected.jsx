@@ -56,17 +56,21 @@ function parseHistoricalDate(value) {
     if (d) return [d.y,String(d.m).padStart(2,"0"),String(d.d).padStart(2,"0")].join("-");
   }
   const raw=String(value??"").trim();
-  let m=raw.match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})$/);
+  let m=raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
   if(m) return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
-  m=raw.match(/^(\\d{4})[-/.](\\d{1,2})[-/.](\\d{1,2})$/);
+  m=raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
   return m ? m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0") : "";
 }
 function parseHistoricalHours(value) {
   if (value===null || value===undefined || value==="") return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.getUTCHours()+value.getUTCMinutes()/60+value.getUTCSeconds()/3600;
+  }
   if (typeof value==="number") return value>=0 && value<1 ? value*24 : value;
-  const m=String(value).trim().match(/^(\\d{1,3}):(\\d{1,2})(?::(\\d{1,2}))?$/);
+  const m=String(value).trim().match(/^(\d{1,3}):(\d{1,2})(?::(\d{1,2}))?$/);
   if(m) return Number(m[1])+Number(m[2])/60+Number(m[3]||0)/3600;
-  const n=Number(value); return Number.isFinite(n) ? n : null;
+  const n=Number(String(value).replace(/,/g,"").trim());
+  return Number.isFinite(n) && n>=0 ? n : null;
 }
 function parseHistoricalQty(value) {
   if(value===null||value===undefined||String(value).trim()==="") return null;
