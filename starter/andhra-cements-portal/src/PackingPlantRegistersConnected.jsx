@@ -90,10 +90,10 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
  }
  const truckQuantitySummary=(list)=>{
   const trucks=new Set(list.map(x=>String(x.vehicle_number||"").trim().toUpperCase()).filter(Boolean));
-  const out={trucks:trucks.size,opcYellow:0,opcWhite:0,ppcYellow:0,ppcWhite:0,ppcLaminated:0,quantityMt:0};
+  const out={sessions:list.length,trucks:trucks.size,unclassified:0,durationSeconds:list.reduce((n,x)=>n+Math.max(0,Number(x.duration_seconds)||0),0),opcYellow:0,opcWhite:0,ppcYellow:0,ppcWhite:0,ppcLaminated:0,quantityMt:0};
   list.forEach(x=>{
    const grade=String(x.grade||"").toUpperCase(),bagType=String(x.bag_type||"").toUpperCase(),bags=Number(x.target_bags);
-   if(!Number.isFinite(bags)||bags<=0||!["OPC","PPC"].includes(grade)||!["YELLOW","WHITE","LAMINATED"].includes(bagType)||(grade==="OPC"&&bagType==="LAMINATED"))return;
+   if(!Number.isFinite(bags)||bags<=0||!["OPC","PPC"].includes(grade)||!["YELLOW","WHITE","LAMINATED"].includes(bagType)||(grade==="OPC"&&bagType==="LAMINATED")){out.unclassified++;return;}
    const mt=bags/20;
    out.quantityMt+=mt;
    if(grade==="OPC"&&bagType==="YELLOW")out.opcYellow+=mt;
@@ -108,16 +108,16 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
   const list=packerReportRows.filter(x=>x.packer_code===code);
   return {code,label:code==="P1"?"Packer 1":code==="P2"?"Packer 2":"Packer 3",...truckQuantitySummary(list)};
  });
- const packerShiftSummary=[...new Set(packerReportRows.map(x=>x.packer_code+"|"+x.shift_code))].sort().map(k=>{
-  const [pc,sh]=k.split("|"),list=packerReportRows.filter(x=>x.packer_code===pc&&x.shift_code===sh);
-  return {packer:pc==="P1"?"Packer 1":pc==="P2"?"Packer 2":"Packer 3",shift:sh,...truckQuantitySummary(list)};
+ const packerShiftSummary=[...new Set(packerReportRows.map(x=>x.packer_code+"|"+x.counter_no+"|"+x.shift_code))].sort().map(k=>{
+  const [pc,cn,sh]=k.split("|"),list=packerReportRows.filter(x=>x.packer_code===pc&&String(x.counter_no)===cn&&x.shift_code===sh);
+  return {packer:pc==="P1"?"Packer 1":pc==="P2"?"Packer 2":"Packer 3",counter:cn,shift:sh,...truckQuantitySummary(list)};
  });
  function durationText(seconds){const n=Math.max(0,Math.round(Number(seconds||0))),h=Math.floor(n/3600),m=Math.floor((n%3600)/60),sec=n%60;return [h,m,sec].map(v=>String(v).padStart(2,"0")).join(":");}
  function downloadPackerReport(){
   if(!packerReportRows.length){setNotice("No Packer Report records to download.");return;}
-  const columns=x=>({"No. of Trucks Loaded":x.trucks,"OPC Yellow (MT)":x.opcYellow,"OPC White (MT)":x.opcWhite,"PPC Yellow (MT)":x.ppcYellow,"PPC White (MT)":x.ppcWhite,"PPC Laminated (MT)":x.ppcLaminated,"Total Quantity (MT)":x.quantityMt});
+  const columns=x=>({"Loading Sessions":x.sessions,"No. of Trucks Loaded":x.trucks,"Unclassified Sessions":x.unclassified,"Loading Duration":durationText(x.durationSeconds),"OPC Yellow (MT)":x.opcYellow,"OPC White (MT)":x.opcWhite,"PPC Yellow (MT)":x.ppcYellow,"PPC White (MT)":x.ppcWhite,"PPC Laminated (MT)":x.ppcLaminated,"Total Quantity (MT)":x.quantityMt});
   const summary=packerSummary.map(x=>({"Packer":x.label,...columns(x)}));
-  const shifts=packerShiftSummary.map(x=>({"Packer":x.packer,"Shift":x.shift,...columns(x)}));
+  const shifts=packerShiftSummary.map(x=>({"Packer":x.packer,"Counter":x.counter,"Shift":x.shift,...columns(x)}));
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(summary),"Packer Summary");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(shifts),"Packer Shift Summary");
   XLSX.writeFile(wb,"Packing-Plant-Packer-Summary-"+packerFrom+"-to-"+packerTo+".xlsx");
  }
@@ -182,7 +182,7 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     const truck=String(r[ix.vehicle]??"").trim().toUpperCase();
     const start=parseBagDateTime(r[ix.start],bagReportFrom);
     const end=parseBagDateTime(r[ix.end],start?isoLocalDate(start):bagReportFrom);
-    const grade=String(r[ix.grade]??"").trim().toUpperCase();
+    const gradeRaw=String(r[ix.grade]??"").trim().toUpperCase(); const grade=gradeRaw.startsWith("OPC")?"OPC":gradeRaw.startsWith("PPC")?"PPC":gradeRaw;
     const bagTypeRaw=String(r[ix.bagType]??"").trim().toUpperCase();
     const bagType=bagTypeRaw.includes("LAMIN")?"LAMINATED":bagTypeRaw.includes("WHITE")?"WHITE":bagTypeRaw.includes("YELLOW")?"YELLOW":bagTypeRaw;
     const rawTarget=String(r[ix.target]??"").replace(/,/g,"").trim();
@@ -471,8 +471,8 @@ export default function PackingPlantRegistersConnected({supabase,session,profile
     <label>Packer<select value={packerFilter} onChange={e=>setPackerFilter(e.target.value)}><option value="ALL">All Packers</option><option value="P1">Packer 1</option><option value="P2">Packer 2</option><option value="P3">Packer 3</option></select></label>
    </div><div className="button-row"><button className="primary" onClick={loadPackerReport} disabled={packerReportBusy}>{packerReportBusy?"Generating…":"Generate Report"}</button><button className="secondary" onClick={()=>{setPackerFrom(today().slice(0,7)+"-01");setPackerTo(today());setPackerShift("ALL");setPackerFilter("ALL");setPackerReportRows([]);setPackerReportLoaded(false);}}>Clear Filters</button>{packerReportLoaded&&<button className="secondary" onClick={downloadPackerReport}>Download Excel</button>}</div></div>
    {packerReportLoaded&&<><div className="stats pp-truck-stats"><div className="stat"><span>Total loading sessions</span><b>{packerReportRows.length}</b></div><div className="stat"><span>Total loading duration</span><b>{durationText(packerReportRows.reduce((n,x)=>n+Number(x.duration_seconds||0),0))}</b></div><div className="stat"><span>Average session duration</span><b>{durationText(packerReportRows.length?packerReportRows.reduce((n,x)=>n+Number(x.duration_seconds||0),0)/packerReportRows.length:0)}</b></div></div>
-    <div className="panel"><h3>Packer-wise summary</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>No. of Trucks Loaded</th><th>OPC Yellow (MT)</th><th>OPC White (MT)</th><th>PPC Yellow (MT)</th><th>PPC White (MT)</th><th>PPC Laminated (MT)</th><th>Total Quantity (MT)</th></tr></thead><tbody>{packerSummary.filter(x=>packerFilter==="ALL"||x.code===packerFilter).map(x=><tr key={x.code}><td>{x.label}</td><td>{x.trucks}</td><td>{money(x.opcYellow)}</td><td>{money(x.opcWhite)}</td><td>{money(x.ppcYellow)}</td><td>{money(x.ppcWhite)}</td><td>{money(x.ppcLaminated)}</td><td><b>{money(x.quantityMt)}</b></td></tr>)}</tbody></table></div></div>
-    <div className="panel"><h3>Packer-wise and shift-wise truck loading summary</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>No. of Trucks Loaded</th><th>OPC Yellow (MT)</th><th>OPC White (MT)</th><th>PPC Yellow (MT)</th><th>PPC White (MT)</th><th>PPC Laminated (MT)</th><th>Total Quantity (MT)</th></tr></thead><tbody>{packerShiftSummary.map(x=><tr key={x.packer+"-"+x.counter+"-"+x.shift}><td>{x.packer}</td><td>{x.counter}</td><td>{x.shift}</td><td>{x.trucks}</td><td>{money(x.opcYellow)}</td><td>{money(x.opcWhite)}</td><td>{money(x.ppcYellow)}</td><td>{money(x.ppcWhite)}</td><td>{money(x.ppcLaminated)}</td><td><b>{money(x.quantityMt)}</b></td></tr>)}{!packerShiftSummary.length&&<tr><td colSpan="9" className="muted">No bag-counting sessions for the selected filters.</td></tr>}</tbody></table></div></div></>}
+    <div className="panel"><h3>Packer-wise summary</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Loading Sessions</th><th>No. of Trucks Loaded</th><th>Unclassified Sessions</th><th>Loading Duration</th><th>OPC Yellow (MT)</th><th>OPC White (MT)</th><th>PPC Yellow (MT)</th><th>PPC White (MT)</th><th>PPC Laminated (MT)</th><th>Total Quantity (MT)</th></tr></thead><tbody>{packerSummary.filter(x=>packerFilter==="ALL"||x.code===packerFilter).map(x=><tr key={x.code}><td>{x.label}</td><td>{x.sessions}</td><td>{x.trucks}</td><td>{x.unclassified}</td><td>{durationText(x.durationSeconds)}</td><td>{money(x.opcYellow)}</td><td>{money(x.opcWhite)}</td><td>{money(x.ppcYellow)}</td><td>{money(x.ppcWhite)}</td><td>{money(x.ppcLaminated)}</td><td><b>{money(x.quantityMt)}</b></td></tr>)}</tbody></table></div></div>
+    <div className="panel"><h3>Packer-wise and shift-wise truck loading summary</h3><div className="table-scroll"><table><thead><tr><th>Packer</th><th>Counter</th><th>Shift</th><th>Loading Sessions</th><th>No. of Trucks Loaded</th><th>Unclassified Sessions</th><th>Loading Duration</th><th>OPC Yellow (MT)</th><th>OPC White (MT)</th><th>PPC Yellow (MT)</th><th>PPC White (MT)</th><th>PPC Laminated (MT)</th><th>Total Quantity (MT)</th></tr></thead><tbody>{packerShiftSummary.map(x=><tr key={x.packer+"-"+x.counter+"-"+x.shift}><td>{x.packer}</td><td>{x.counter}</td><td>{x.shift}</td><td>{x.sessions}</td><td>{x.trucks}</td><td>{x.unclassified}</td><td>{durationText(x.durationSeconds)}</td><td>{money(x.opcYellow)}</td><td>{money(x.opcWhite)}</td><td>{money(x.ppcYellow)}</td><td>{money(x.ppcWhite)}</td><td>{money(x.ppcLaminated)}</td><td><b>{money(x.quantityMt)}</b></td></tr>)}{!packerShiftSummary.length&&<tr><td colSpan="13" className="muted">No bag-counting sessions for the selected filters.</td></tr>}</tbody></table></div></div></>}
   </>}
    {section==="Attendance"&&<div className="panel"><h3>Shift-wise employee attendance</h3>{holiday&&<div className="alert">Holiday: {holiday.description}. Extra Duty applies only after at least 7 regular attended days earlier in this calendar month.</div>}
    <div className="mapping-grid pp-register-grid">
