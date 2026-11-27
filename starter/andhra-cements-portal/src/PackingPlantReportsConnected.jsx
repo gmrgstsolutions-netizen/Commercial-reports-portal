@@ -156,13 +156,18 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
           reasons.push({business_date,asset_name:assetName,stoppage_reason:rr.label,stoppage_hours:Number(cell.hours.toFixed(6)),source_file:fileName,source_sheet:sheetName});
         }
       }
-      const getDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index]:null;};
-      const total=parseHistoricalHours(getDay(stopTotalRow));
-      const running=parseHistoricalHours(getDay(runningRow));
-      const available=parseHistoricalHours(getDay(availableRow));
-      const dispatch=parseHistoricalQty(getDay(dispatchRow));
-      const avg=parseHistoricalQty(getDay(avgRow));
-      const utilisation=parseHistoricalPercent(getDay(utilisationRow));
+      // The reason matrix has two leading columns (Sl No. + Reason), so
+      // its day 1 starts at the same index as the day-number header.
+      // The summary rows have only one leading label column, so their day 1
+      // starts one column earlier. The trailing monthly total is not a day.
+      const getReasonDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index]:null;};
+      const getSummaryDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index-1]:null;};
+      const total=parseHistoricalHours(getSummaryDay(stopTotalRow));
+      const running=parseHistoricalHours(getSummaryDay(runningRow));
+      const available=parseHistoricalHours(getSummaryDay(availableRow));
+      const dispatch=parseHistoricalQty(getSummaryDay(dispatchRow));
+      const avg=parseHistoricalQty(getSummaryDay(avgRow));
+      const utilisation=parseHistoricalPercent(getSummaryDay(utilisationRow));
       if(total!==null||running!==null||available!==null||dispatch!==null||reasonTotal>0){
         summaries.push({business_date,asset_name:assetName,total_stoppage_hours:Number((total??reasonTotal).toFixed(6)),running_hours:running??0,available_hours:available??24,utilisation_percent:utilisation,dispatch_mt:dispatch,avg_packer_tph:avg,source_file:fileName,source_sheet:sheetName});
       }
