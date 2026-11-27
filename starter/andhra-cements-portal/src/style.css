@@ -709,3 +709,5 @@ body{
 .performance-report .cr-section h4 { background:#d2dceb; color:#000; border-color:#a6a6a6; }
 .performance-report .cr-section h5 { margin:9px 0 4px; color:#173653; }
 .performance-report .cr-small { min-width:850px; }
+
+.history-upload-panel{margin-top:14px;border:1px solid #c8d4e0}.history-upload-panel .panel-title{align-items:center}.history-upload-panel input[type=file]{max-width:100%;padding:8px;border:1px solid #cbd5df;border-radius:6px;background:#fff}.history-upload-panel .cr-small{min-width:650px}.history-upload-panel .primary{margin:8px 0 2px;padding:9px 16px;border:0;border-radius:5px;background:#244f78;color:#fff;font-weight:700;cursor:pointer}.history-upload-panel .primary:disabled{opacity:.6;cursor:wait}
