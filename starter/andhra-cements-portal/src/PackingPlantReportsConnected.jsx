@@ -97,18 +97,26 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       return cells.some(v=>/^stoppage\s+reason$/.test(v)) && cells.some(v=>/^sl\s*no\.?$|^s\.?\s*no\.?$/.test(v));
     });
     if(headerIndex<0){errors.push(sheetName+": table header row containing both 'Sl No.' and 'Stoppage Reason' was not found.");continue;}
-    // Some workbooks place day numbers in a merged/multi-row header immediately above or below the labels.
-    const dayMap=new Map();
-    for(let r=Math.max(0,headerIndex-2);r<=Math.min(grid.length-1,headerIndex+2);r++){
-      (grid[r]||[]).forEach((v,i)=>{
+    // Locate the actual day-number header row across the worksheet. Do not scan
+    // nearby reason rows: their Sl No. values (1, 2, 3...) are not day columns.
+    const monthDays=new Date(year,month,0).getDate();
+    const dayHeaderCandidates=grid.map((row,rowIndex)=>{
+      const entries=[];
+      (row||[]).forEach((v,i)=>{
         const raw=String(v??"").trim();
-        if(!/^\d{1,2}$/.test(raw))return;
+        if(i<2||!/^\d{1,2}$/.test(raw))return;
         const d=Number(raw);
-        if(d>=1&&d<=31&&!dayMap.has(d))dayMap.set(d,i);
+        if(d>=1&&d<=monthDays&&!entries.some(x=>x.day===d))entries.push({day:d,index:i});
       });
-    }
+      return {rowIndex,entries};
+    }).filter(x=>x.entries.length>0).sort((a,b)=>b.entries.length-a.entries.length);
+    const bestDayHeader=dayHeaderCandidates[0];
+    const dayMap=new Map((bestDayHeader?.entries||[]).map(x=>[x.day,x.index]));
     const dayColumns=[...dayMap.entries()].map(([day,index])=>({day,index})).sort((a,b)=>a.day-b.day);
-    if(!dayColumns.length){errors.push(sheetName+": day-number columns not found in the header rows around 'Sl No.' and 'Stoppage Reason'.");continue;}
+    if(!bestDayHeader||dayColumns.length<Math.min(28,monthDays)){
+      errors.push(sheetName+": could not identify a complete day-number header row (found "+dayColumns.length+" of "+monthDays+" days).");
+      continue;
+    }
     const findRow=(label)=>grid.find(row=>(row||[]).slice(0,3).some(v=>new RegExp("^\\s*"+label+"\\s*$","i").test(String(v??"").trim())));
     const stopTotalRow=findRow("Total Stoppage Hrs");
     const runningRow=findRow("Running Hours");
@@ -126,7 +134,6 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       const dayValues=dayColumns.map(({day,index})=>({day,hours:parseHistoricalHours(row[index])}));
       if(dayValues.some(x=>x.hours!==null&&x.hours>0)) reasonRows.push({label,dayValues});
     }
-    const monthDays=new Date(year,month,0).getDate();
     for(let day=1;day<=monthDays;day++){
       const business_date=[year,String(month).padStart(2,"0"),String(day).padStart(2,"0")].join("-");
       let reasonTotal=0;
@@ -313,8 +320,14 @@ export default function PackingPlantReportsConnected({ supabase }) {
       const now=new Date().toISOString();
       const summaryPayload=summaries.map(x=>({...x,uploaded_by:userId,updated_at:now}));
       const reasonPayload=reasons.map(x=>({...x,uploaded_by:userId,updated_at:now}));
+      const firstDate=summaries.reduce((v,x)=>x.business_date<v?x.business_date:v,summaries[0].business_date);
+      const lastDate=summaries.reduce((v,x)=>x.business_date>v?x.business_date:v,summaries[0].business_date);
       const {error:summaryError}=await supabase.from("packing_plant_historical_stoppage_summary_daily").upsert(summaryPayload,{onConflict:"business_date,asset_name"});
       if(summaryError)throw summaryError;
+      // Replace the historical reason rows for this packer/date range so a
+      // corrected workbook cannot leave stale entries from an earlier parse.
+      const {error:clearReasonError}=await supabase.from("packing_plant_historical_stoppage_reason_daily").delete().eq("asset_name",stoppageAsset).gte("business_date",firstDate).lte("business_date",lastDate);
+      if(clearReasonError)throw clearReasonError;
       if(reasonPayload.length){
         const {error:reasonError}=await supabase.from("packing_plant_historical_stoppage_reason_daily").upsert(reasonPayload,{onConflict:"business_date,asset_name,stoppage_reason"});
         if(reasonError)throw reasonError;
