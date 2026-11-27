@@ -160,7 +160,6 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       // its day 1 starts at the same index as the day-number header.
       // The summary rows have only one leading label column, so their day 1
       // starts one column earlier. The trailing monthly total is not a day.
-      const getReasonDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index]:null;};
       const getSummaryDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index-1]:null;};
       const total=parseHistoricalHours(getSummaryDay(stopTotalRow));
       const running=parseHistoricalHours(getSummaryDay(runningRow));
