@@ -415,7 +415,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
           const row = ws.getRow(rowNo);
           row.getCell(2).value = item ? (item.stop_number??index+1) : "";
           row.getCell(3).value = group.date ? new Date(group.date+"T00:00:00Z") : "";
-          row.getCell(4).value = details.length;
+          row.getCell(4).value = details[0]?.category==="Historical Aggregate" ? "Historical" : details.length;
           row.getCell(5).value = item ? timeValue(item.stop_time) : "";
           row.getCell(6).value = item ? timeValue(item.start_time) : "";
           row.getCell(7).value = item && Number.isFinite(Number(item.duration_hours)) ? Number(item.duration_hours)/24 : "";
@@ -609,7 +609,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
                   {items.map((item,i)=><tr key={i}>
                     <td>{item?.stop_number??""}</td>
                     <td>{new Date(group.date+"T00:00:00").toLocaleDateString("en-GB")}</td>
-                    <td>{details.length}</td>
+                    <td>{details[0]?.category==="Historical Aggregate"?"Historical":details.length}</td>
                     <td>{item?.stop_time??""}</td>
                     <td>{item?.start_time??""}</td>
                     <td>{item?.duration_hours==null?"":Number(item.duration_hours).toFixed(2)}</td>
