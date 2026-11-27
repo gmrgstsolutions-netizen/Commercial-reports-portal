@@ -150,8 +150,19 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
     }
     sheetMonths.push({month,year,sheetName});
   }
-  if(workbook.SheetNames.length!==12) errors.push("Expected 12 monthly worksheets (April to March); found "+workbook.SheetNames.length+".");
-  if(sheetMonths.length===12){
+  // A current-FY workbook may contain only completed months. In November 2026,
+  // for example, April through October (7 sheets) is a valid historical upload.
+  const now=new Date();
+  const currentFyStart=now.getMonth()>=3?now.getFullYear():now.getFullYear()-1;
+  const lastCompletedMonth=now.getMonth()>=3?now.getMonth():12;
+  const isCurrentFy=sheetMonths.length>0&&sheetMonths.every(x=>x.year===currentFyStart||x.year===currentFyStart+1);
+  const currentFyExpected=[];
+  for(let m=4;m<=lastCompletedMonth;m++) currentFyExpected.push({month:m,year:currentFyStart});
+  const currentFyPartial=isCurrentFy&&sheetMonths.length===currentFyExpected.length&&currentFyExpected.every(expected=>sheetMonths.some(x=>x.month===expected.month&&x.year===expected.year));
+  if(workbook.SheetNames.length!==12&&!currentFyPartial){
+    errors.push("Expected 12 monthly worksheets (April to March), or the completed April-to-"+monthNames[lastCompletedMonth-1]+" months for the current financial year; found "+workbook.SheetNames.length+".");
+  }
+  if(!currentFyPartial){
     const years=new Set(sheetMonths.map(x=>x.year));
     const monthSet=new Set(sheetMonths.map(x=>x.month));
     if(years.size!==2 || monthSet.size!==12 || ![4,5,6,7,8,9,10,11,12,1,2,3].every(m=>monthSet.has(m))) errors.push("Worksheets must cover each month from April through March exactly once.");
@@ -584,7 +595,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
 
     {reportKey === "daily_stoppage" && <div className="panel history-upload-panel">
       <div className="panel-title"><h3>Historical Monthly Stoppage Data Upload</h3><span className="pill">Administrator upload</span></div>
-      <p className="footnote">Select the packer and upload its financial-year workbook containing 12 monthly worksheets (April to March). Daily reason durations and summary figures are imported; stop and restart times are not created.</p>
+      <p className="footnote">Select the packer and upload its financial-year workbook. A completed FY should contain April to March; for the current FY, available completed months (April onward) are accepted. Daily reason durations and summary figures are imported; stop and restart times are not created.</p>
       <div className="mapping-grid">
         <label>Packer<select value={stoppageAsset} onChange={e=>{setStoppageAsset(e.target.value);setStoppageFile(null);setStoppagePreview({reasons:[],summaries:[],errors:[],sheetMonths:[]});setStoppageMessage("");}}><option>Packer 1</option><option>Packer 2</option><option>Packer 3</option></select></label>
         <label>Select financial-year workbook<input type="file" accept=".xlsx,.xls" onChange={e=>void previewHistoricalStoppageFile(e.target.files?.[0]||null)}/></label>
