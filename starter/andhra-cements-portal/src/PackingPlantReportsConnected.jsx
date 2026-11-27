@@ -122,7 +122,7 @@ export default function PackingPlantReportsConnected({ supabase }) {
         c.border = { top:{style:"thin"},bottom:{style:r===5?"medium":"thin"},left:{style:"thin"},right:{style:"thin"} };
       });
       const imageId = workbook.addImage({ base64: "data:image/png;base64," + logoBase64.trim(), extension: "png" });
-      ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 105, height: 72 } });
+      ws.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 82, height: 56 } });
 
       const headers = ["Stops Counter","Date","STOPs in a Day","Stop","Start","Duration","Reason for Stoppage","Stoppage Category","Day Stoppage Hrs","Day Run.Hrs","Day Prod.(MT)"];
       const merges = ["B","C","D","E","F","G","H","I","J","K","L"];
