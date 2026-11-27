@@ -127,14 +127,13 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       errors.push(sheetName+": could not identify the day-number header beside the stoppage table (found "+dayColumns.length+" of "+monthDays+" days).");
       continue;
     }
-    const summaryLabel=/^(total\s+stoppage|running\s+hours|total\s+available|%\s*of\s*utilisation|dispatches|avg\s*packer)/i;
-    const findLabelRow=(pattern)=>grid.find(row=>(row||[]).slice(0,Math.max(6,reasonCol+1)).some(v=>pattern.test(String(v??"").trim())));
-    const stopTotalRow=findLabelRow(/^total\s+stoppage\s+hrs$/i);
-    const runningRow=findLabelRow(/^running\s+hours$/i);
-    const availableRow=findLabelRow(/^total\s+available\s+hrs$/i);
-    const utilisationRow=findLabelRow(/^%\s*of\s*utilisation$/i);
-    const dispatchRow=findLabelRow(/^dispatches(?:\s*\(mt\))?$/i);
-    const avgRow=findLabelRow(/^avg\s*packer(?:\s*\(tph\))?$/i);
+    const normalizeLabel=(v)=>String(v??"").toLowerCase().replace(/[.:]/g,"").replace(/\\s+/g," ").trim();
+    const summaryLabel=/^(total\\s+stoppage|running\\s+hours|total\\s+available|%\\s*of\\s*utilisation|dispatches|avg\\s*packer)/i;
+    // Summary labels can be merged across cells or include punctuation/wording variants.
+    const stopTotalRow=grid.find(row=>(row||[]).some(v=>{
+      const label=normalizeLabel(v);
+      return /^(?:total\\s+)?stoppage\\s+(?:hrs?|hours?)(?:\\s+total)?$/.test(label);
+    }))||null;
     const reasonRows=[];
     for(let r=headerIndex+1;r<grid.length;r++){
       if(r===bestDayHeader.rowIndex)continue;
@@ -156,12 +155,15 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
           reasons.push({business_date,asset_name:assetName,stoppage_reason:rr.label,stoppage_hours:Number(cell.hours.toFixed(6)),source_file:fileName,source_sheet:sheetName});
         }
       }
-      // The reason matrix has two leading columns (Sl No. + Reason), so
-      // its day 1 starts at the same index as the day-number header.
-      // The summary rows have only one leading label column, so their day 1
-      // starts one column earlier. The trailing monthly total is not a day.
-      const getSummaryDay=(row)=>{const cell=dayColumns.find(x=>x.day===day);return row&&cell?row[cell.index-1]:null;};
-      const total=parseHistoricalHours(getSummaryDay(stopTotalRow));
+      // Summary rows may have one or two leading cells due to merged Excel headers.
+      // Choose the alignment that yields the most parseable daily values.
+      const dayCell=dayColumns.find(x=>x.day===day);
+      const offsets=[0,-1,1];
+      const summaryOffset=stopTotalRow?offsets.map(offset=>({
+        offset,
+        count:dayColumns.reduce((n,cell)=>n+(parseHistoricalHours(stopTotalRow[cell.index+offset])!==null?1:0),0)
+      })).sort((a,b)=>b.count-a.count)[0]?.offset:0;
+      const total=stopTotalRow&&dayCell?parseHistoricalHours(stopTotalRow[dayCell.index+summaryOffset]):null;
       if(total!==null||reasonTotal>0){
         summaries.push({business_date,asset_name:assetName,total_stoppage_hours:Number((total??reasonTotal).toFixed(6)),source_file:fileName,source_sheet:sheetName});
       }
