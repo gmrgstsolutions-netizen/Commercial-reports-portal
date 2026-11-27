@@ -97,42 +97,54 @@ function parseHistoricalStoppageWorkbook(workbook, assetName, fileName) {
       return cells.some(v=>/^stoppage\s+reason$/.test(v)) && cells.some(v=>/^sl\s*no\.?$|^s\.?\s*no\.?$/.test(v));
     });
     if(headerIndex<0){errors.push(sheetName+": table header row containing both 'Sl No.' and 'Stoppage Reason' was not found.");continue;}
-    // Locate the actual day-number header row across the worksheet. Do not scan
-    // nearby reason rows: their Sl No. values (1, 2, 3...) are not day columns.
+    // Anchor day columns to the stoppage table. Never search the whole sheet:
+    // daily values elsewhere in the worksheet can look like day numbers.
     const monthDays=new Date(year,month,0).getDate();
-    const dayHeaderCandidates=grid.map((row,rowIndex)=>{
-      const entries=[];
-      (row||[]).forEach((v,i)=>{
-        const raw=String(v??"").trim();
-        if(i<2||!/^\d{1,2}$/.test(raw))return;
-        const d=Number(raw);
-        if(d>=1&&d<=monthDays&&!entries.some(x=>x.day===d))entries.push({day:d,index:i});
-      });
-      return {rowIndex,entries};
-    }).filter(x=>x.entries.length>0).sort((a,b)=>b.entries.length-a.entries.length);
-    const bestDayHeader=dayHeaderCandidates[0];
-    const dayMap=new Map((bestDayHeader?.entries||[]).map(x=>[x.day,x.index]));
-    const dayColumns=[...dayMap.entries()].map(([day,index])=>({day,index})).sort((a,b)=>a.day-b.day);
-    if(!bestDayHeader||dayColumns.length<Math.min(28,monthDays)){
-      errors.push(sheetName+": could not identify a complete day-number header row (found "+dayColumns.length+" of "+monthDays+" days).");
+    const headerCells=grid[headerIndex]||[];
+    const slNoCol=headerCells.findIndex(v=>/^sl\\s*no\\.?$|^s\\.?\\s*no\\.?$/i.test(String(v??"").trim()));
+    const reasonCol=headerCells.findIndex(v=>/^stoppage\\s+reason$/i.test(String(v??"").trim()));
+    if(slNoCol<0||reasonCol<0||reasonCol<=slNoCol){
+      errors.push(sheetName+": could not identify the serial-number and reason columns in the table header.");
       continue;
     }
-    const findRow=(label)=>grid.find(row=>(row||[]).slice(0,3).some(v=>new RegExp("^\\s*"+label+"\\s*$","i").test(String(v??"").trim())));
-    const stopTotalRow=findRow("Total Stoppage Hrs");
-    const runningRow=findRow("Running Hours");
-    const availableRow=findRow("Total Available Hrs");
-    const utilisationRow=findRow("% of utilisation");
-    const dispatchRow=findRow("Dispatches \\(MT\\)") || findRow("Dispatches");
-    const avgRow=findRow("Avg Packer \\(TPH\\)") || findRow("Avg Packer");
+    const dayHeaderCandidates=[];
+    for(let rowIndex=Math.max(0,headerIndex-2);rowIndex<=Math.min(grid.length-1,headerIndex+2);rowIndex++){
+      const entries=[];
+      (grid[rowIndex]||[]).forEach((v,i)=>{
+        if(i<=reasonCol)return;
+        const raw=String(v??"").trim();
+        if(!/^\\d{1,2}$/.test(raw))return;
+        const day=Number(raw);
+        if(day>=1&&day<=monthDays&&!entries.some(x=>x.day===day))entries.push({day,index:i});
+      });
+      if(entries.length)dayHeaderCandidates.push({rowIndex,entries,distance:Math.abs(rowIndex-headerIndex)});
+    }
+    dayHeaderCandidates.sort((a,b)=>b.entries.length-a.entries.length||a.distance-b.distance);
+    const bestDayHeader=dayHeaderCandidates[0];
+    const dayColumns=(bestDayHeader?.entries||[]).sort((a,b)=>a.day-b.day);
+    const expectedDayCount=monthDays;
+    if(!bestDayHeader||dayColumns.length<Math.min(28,expectedDayCount)){
+      errors.push(sheetName+": could not identify the day-number header beside the stoppage table (found "+dayColumns.length+" of "+monthDays+" days).");
+      continue;
+    }
+    const summaryLabel=/^(total\\s+stoppage|running\\s+hours|total\\s+available|%\\s*of\\s*utilisation|dispatches|avg\\s*packer)/i;
+    const findLabelRow=(pattern)=>grid.find(row=>(row||[]).slice(0,Math.max(6,reasonCol+1)).some(v=>pattern.test(String(v??"").trim())));
+    const stopTotalRow=findLabelRow(/^total\\s+stoppage\\s+hrs$/i);
+    const runningRow=findLabelRow(/^running\\s+hours$/i);
+    const availableRow=findLabelRow(/^total\\s+available\\s+hrs$/i);
+    const utilisationRow=findLabelRow(/^%\\s*of\\s*utilisation$/i);
+    const dispatchRow=findLabelRow(/^dispatches(?:\\s*\\(mt\\))?$/i);
+    const avgRow=findLabelRow(/^avg\\s*packer(?:\\s*\\(tph\\))?$/i);
     const reasonRows=[];
     for(let r=headerIndex+1;r<grid.length;r++){
+      if(r===bestDayHeader.rowIndex)continue;
       const row=grid[r]||[];
-      const label=String(row[1]??"").trim();
-      if(!label) continue;
-      if(/^(total\s+stoppage|running\s+hours|total\s+available|%\s*of\s*utilisation|dispatches|avg\s*packer)/i.test(label)) continue;
-      if(/^(sl\s*no|s\.?\s*no|stoppage\s*reason)$/i.test(label)) continue;
+      const label=String(row[reasonCol]??"").trim();
+      if(!label)continue;
+      if(summaryLabel.test(label))break;
+      if(/^(sl\\s*no|s\\.?\\s*no|stoppage\\s*reason)$/i.test(label))continue;
       const dayValues=dayColumns.map(({day,index})=>({day,hours:parseHistoricalHours(row[index])}));
-      if(dayValues.some(x=>x.hours!==null&&x.hours>0)) reasonRows.push({label,dayValues});
+      if(dayValues.some(x=>x.hours!==null&&x.hours>0))reasonRows.push({label,dayValues});
     }
     for(let day=1;day<=monthDays;day++){
       const business_date=[year,String(month).padStart(2,"0"),String(day).padStart(2,"0")].join("-");
