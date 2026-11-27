@@ -49,6 +49,31 @@ function reportNumber(value) {
   return Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function parseHistoricalDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+  if (typeof value === "number" && value > 20000) {
+    const d = XLSX.SSF.parse_date_code(value);
+    if (d) return [d.y,String(d.m).padStart(2,"0"),String(d.d).padStart(2,"0")].join("-");
+  }
+  const raw=String(value??"").trim();
+  let m=raw.match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})$/);
+  if(m) return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  m=raw.match(/^(\\d{4})[-/.](\\d{1,2})[-/.](\\d{1,2})$/);
+  return m ? m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0") : "";
+}
+function parseHistoricalHours(value) {
+  if (value===null || value===undefined || value==="") return null;
+  if (typeof value==="number") return value>=0 && value<1 ? value*24 : value;
+  const m=String(value).trim().match(/^(\\d{1,3}):(\\d{1,2})(?::(\\d{1,2}))?$/);
+  if(m) return Number(m[1])+Number(m[2])/60+Number(m[3]||0)/3600;
+  const n=Number(value); return Number.isFinite(n) ? n : null;
+}
+function parseHistoricalQty(value) {
+  if(value===null||value===undefined||String(value).trim()==="") return null;
+  const n=Number(String(value).replace(/,/g,"").trim());
+  return Number.isFinite(n)&&n>=0?n:null;
+}
+
 export default function PackingPlantReportsConnected({ supabase }) {
   const [reportKey, setReportKey] = useState("shift_production");
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString("en-CA"));
@@ -56,6 +81,10 @@ export default function PackingPlantReportsConnected({ supabase }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [historyFile, setHistoryFile] = useState(null);
+  const [historyPreview, setHistoryPreview] = useState([]);
+  const [historyMessage, setHistoryMessage] = useState("");
+  const [historyBusy, setHistoryBusy] = useState(false);
 
   const selected = REPORTS.find(r => r.key === reportKey) || REPORTS[0];
   const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : Array.isArray(data?.data?.rows) ? data.data.rows : [];
@@ -104,6 +133,50 @@ export default function PackingPlantReportsConnected({ supabase }) {
     const preferred = Object.keys(rows[0] || {});
     return preferred;
   }, [rows]);
+
+  async function previewHistoricalFile(file) {
+    setHistoryFile(file); setHistoryPreview([]); setHistoryMessage("");
+    if (!file) return;
+    try {
+      const buffer=await file.arrayBuffer();
+      const workbook=XLSX.read(buffer,{type:"array",cellDates:true});
+      const sheet=workbook.Sheets[workbook.SheetNames[0]];
+      const grid=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
+      const assets=["Packer 1","Packer 2","Packer 3","Bulk Loading"];
+      const parsed=[];
+      for(let r=3;r<grid.length;r++){
+        const line=grid[r]||[];
+        const business_date=parseHistoricalDate(line[0]);
+        if(!business_date) continue;
+        for(let a=0;a<4;a++) for(let g=0;g<2;g++){
+          const offset=1+(a*4)+(g*2);
+          const qty=parseHistoricalQty(line[offset]);
+          const hours=parseHistoricalHours(line[offset+1]);
+          if(qty===null && hours===null) continue;
+          parsed.push({business_date,asset_name:assets[a],grade:g===0?"OPC53":"PPC",production_mt:qty??0,running_hours:hours??0});
+        }
+      }
+      if(!parsed.length) throw new Error("No dated production rows found. Check that the first column contains dates and the data starts below the three header rows.");
+      const seen=new Set();
+      for(const row of parsed){const k=[row.business_date,row.asset_name,row.grade].join("|");if(seen.has(k))throw new Error("Duplicate date / section / grade entry: "+k);seen.add(k);}
+      setHistoryPreview(parsed);
+      setHistoryMessage("Preview ready: "+parsed.length.toLocaleString("en-IN")+" date/section/grade records across "+new Set(parsed.map(x=>x.business_date)).size+" dates.");
+    } catch(e){setHistoryPreview([]);setHistoryMessage(e.message||"Unable to read this file.");}
+  }
+  async function uploadHistoricalFile() {
+    if(!historyPreview.length||!supabase)return;
+    setHistoryBusy(true);setHistoryMessage("");
+    try{
+      const payload=historyPreview.map(x=>({...x,source_file:historyFile?.name||null}));
+      const {error:upsertError}=await supabase.from("packing_plant_grade_performance_daily").upsert(payload,{onConflict:"business_date,asset_name,grade"});
+      if(upsertError) throw upsertError;
+      setHistoryMessage("Successfully saved "+payload.length.toLocaleString("en-IN")+" records. Existing entries for the same date, section and grade were updated; other dates and sections were retained.");
+      setHistoryPreview([]);
+      setHistoryFile(null);
+      await loadReport("packing_plant_performance");
+    }catch(e){setHistoryMessage(e.message||"Upload failed. Confirm that you have administrator access.");}
+    finally{setHistoryBusy(false);}
+  }
 
   async function loadReport(requestedReportKey = reportKey) {
     if (!supabase) return;
@@ -363,6 +436,14 @@ export default function PackingPlantReportsConnected({ supabase }) {
       <p className="footnote">{selected.note}</p>
     </div>
     {error && <div className="alert error">{error}</div>}
+    {reportKey === "packing_plant_performance" && <div className="panel history-upload-panel">
+      <div className="panel-title"><h3>Historical Grade-wise Production & Running Hours Upload</h3><span className="pill">Administrator upload</span></div>
+      <p className="footnote">Upload the three-year Excel/CSV sheet using the supplied layout: Date, then Packer 1, Packer 2, Packer 3 and Bulk Loading, each with OPC Qty, R/H, PPC Qty and R/H. Time values such as 07:30 are converted to hours.</p>
+      <div className="mapping-grid"><label>Select historical file<input type="file" accept=".xlsx,.xls,.csv" onChange={e=>void previewHistoricalFile(e.target.files?.[0]||null)}/></label></div>
+      {historyMessage && <p className={historyPreview.length?"validation-ok":"footnote"}>{historyMessage}</p>}
+      {historyPreview.length>0 && <><div className="cr-scroll"><table className="cr-table cr-small"><thead><tr>{["Date","Section","Grade","Production (MT)","Running Hours"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{historyPreview.slice(0,12).map((x,i)=><tr key={i}><td>{reportDate(x.business_date)}</td><td>{x.asset_name}</td><td>{x.grade}</td><td>{reportNumber(x.production_mt)}</td><td>{hourClock(x.running_hours)}</td></tr>)}</tbody></table></div><p className="footnote">Showing first 12 records of {historyPreview.length.toLocaleString("en-IN")}.</p><button className="primary" onClick={uploadHistoricalFile} disabled={historyBusy}>{historyBusy?"Uploading…":"Confirm & Upload Historical Data"}</button></>}
+    </div>}
+
     {busy && <div className="panel"><p>Loading report from Supabase…</p></div>}
     {!busy && data && <div className="panel">
       <div className="panel-title"><h3>{selected.label}</h3><span className="pill">{rows.length.toLocaleString("en-IN")} rows · MT where applicable</span></div>
